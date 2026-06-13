@@ -4,6 +4,7 @@
 
 using namespace std;
 
+// Anggota 1
 struct Tugas {
     int id;
     string namaTugas;
