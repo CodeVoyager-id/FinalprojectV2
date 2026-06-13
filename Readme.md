@@ -1,4 +1,4 @@
-# 📝 Project To-Do App: Catatan Tambahan buat Tugas Kelompok
+## 📝 Project To-Do App: Catatan Tambahan buat Tugas Kelompok 
 
 
 ### 1. Anggota 2 (File Handling)
@@ -19,7 +19,6 @@
   * **Fitur Riwayat (Linked List):** Di kode yang sekarang, fitur log riwayat aktivitas user masih pakai array biasa. Tugas anggota 5 adalah ngubah logika riwayat itu biar pakai Linked List, biar penyimpanannya dinamis dan gak dibatasi kuota array lagi.
   * **Integrasi Kode:** anggota 5 bertanggung jawab buat nggabungin semua codingan dari Anggota 1 sampai 4 biar bisa jalan bareng di menu utama tanpa ada error atau variabel yang tabrakan.
 
----
 
 ## ⚠️ Aturan Main
 1. **Gak boleh pakai library instan (STL):** Kayak `<vector>`, `<stack>`, `<queue>`, atau fungsi `std::sort`. Semuanya (Stack, Queue, Linked List, Sorting, Searching) wajib kita bikin manual dari nol pakai array atau pointer biasa.
