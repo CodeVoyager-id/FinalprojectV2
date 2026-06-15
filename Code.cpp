@@ -594,6 +594,114 @@ void lihatRiwayatAksi() {
     }
     cout << "==================================\n";
 }
+
+// ================= ANGGOTA 4: FITUR SEARCHING & SORTING =================
+
+// Fitur Cari (Searching) menggunakan Linear Search
+void cariTugas() {
+    cout << "\n==================================\n";
+    cout << "           CARI TUGAS             \n";
+    cout << "==================================\n";
+    cout << "1. Cari Berdasarkan ID Tugas\n";
+    cout << "2. Cari Berdasarkan Nama Tugas\n";
+    int opsi = inputAngkaValid("Pilih Opsi Cari (1-2): ", 1, 2);
+
+    bool ditemukan = false;
+
+    if (opsi == 1) {
+        int cariID = inputAngkaValid("Masukkan ID Tugas yang dicari: ", 1, 100000);
+        cout << "\nHasil Pencarian:\n";
+        for (int i = 0; i < jumlahTugas; i++) {
+            // Memastikan ID cocok dan tugas tersebut milik user yang sedang login
+            if (daftar[i].id == cariID && daftar[i].pemilik == currentUser) {
+                // Panggil fungsi cetak (atau copas format tampilan Anggota 1 di sini)
+                cout << "ID Tugas   : " << daftar[i].id << "\n";
+                cout << "Nama Tugas : " << daftar[i].namaTugas << "\n";
+                cout << "Kategori   : " << daftar[i].kategori << "\n";
+                cout << "Prioritas  : " << (daftar[i].prioritas == 1 ? "Tinggi" : (daftar[i].prioritas == 2 ? "Sedang" : "Rendah")) << "\n";
+                cout << "Deadline   : " << daftar[i].deadline << "\n";
+                cout << "Estimasi   : " << daftar[i].estimasiWaktu << " Menit\n";
+                cout << "Status     : [" << daftar[i].status << "]\n";
+                cout << "-----------------------------------\n";
+                ditemukan = true;
+                break; // ID bersifat unik, jadi bisa langsung berhenti jika ketemu
+            }
+        }
+    } else {
+        string cariNama = inputTeksValid("Masukkan Kata Kunci Nama Tugas: ");
+        cout << "\nHasil Pencarian:\n";
+        for (int i = 0; i < jumlahTugas; i++) {
+            // Mencari teks secara fleksibel menggunakan .find()
+            if (daftar[i].pemilik == currentUser && daftar[i].namaTugas.find(cariNama) != string::npos) {
+                cout << "ID Tugas   : " << daftar[i].id << "\n";
+                cout << "Nama Tugas : " << daftar[i].namaTugas << "\n";
+                cout << "Kategori   : " << daftar[i].kategori << "\n";
+                cout << "Prioritas  : " << (daftar[i].prioritas == 1 ? "Tinggi" : (daftar[i].prioritas == 2 ? "Sedang" : "Rendah")) << "\n";
+                cout << "Deadline   : " << daftar[i].deadline << "\n";
+                cout << "Estimasi   : " << daftar[i].estimasiWaktu << " Menit\n";
+                cout << "Status     : [" << daftar[i].status << "]\n";
+                cout << "-----------------------------------\n";
+                ditemukan = true;
+            }
+        }
+    }
+
+    if (!ditemukan) {
+        cout << "[Info] Tugas tidak ditemukan atau bukan hak milik Anda.\n";
+    }
+}
+
+// Fitur Urutkan (Sorting) menggunakan Bubble Sort
+void urutkanTugas() {
+    cout << "\n==================================\n";
+    cout << "          URUTKAN TUGAS           \n";
+    cout << "==================================\n";
+    cout << "1. Urutkan berdasarkan Tingkat Prioritas (Tinggi -> Rendah)\n";
+    cout << "2. Urutkan berdasarkan Estimasi Waktu (Cepat -> Lama)\n";
+    int opsi = inputAngkaValid("Pilih Opsi Urutan (1-2): ", 1, 2);
+
+    // Algoritma Bubble Sort untuk mengurutkan array statis
+    for (int i = 0; i < jumlahTugas - 1; i++) {
+        for (int j = 0; j < jumlahTugas - i - 1; j++) {
+            bool harusTukar = false;
+
+            if (opsi == 1) {
+                // Prioritas 1 (Tinggi) harus berada di baris paling atas/awal array
+                if (daftar[j].prioritas > daftar[j+1].prioritas) {
+                    harusTukar = true;
+                }
+            } else {
+                // Estimasi waktu paling kecil (cepat) ditaruh di awal array
+                if (daftar[j].estimasiWaktu > daftar[j+1].estimasiWaktu) {
+                    harusTukar = true;
+                }
+            }
+
+            if (harusTukar) {
+                Tugas temp = daftar[j];
+                daftar[j] = daftar[j+1];
+                daftar[j+1] = temp;
+            }
+        }
+    }
+
+    simpanTugas(); // Memanggil fungsi milik Anggota 1 untuk auto-save perubahan urutan
+    tambahRiwayat("Mengurutkan daftar tugas melalui menu Sorting");
+    cout << "\n[Sukses] Daftar tugas berhasil diurutkan secara permanen!\n";
+    
+    // Menampilkan hasil urutan terbaru ke layar
+    cout << "\n--- DAFTAR TUGAS SETELAH DIURUTKAN ---\n";
+    for (int i = 0; i < jumlahTugas; i++) {
+        if (daftar[i].pemilik == currentUser) {
+            cout << "ID Tugas   : " << daftar[i].id << "\n";
+            cout << "Nama Tugas : " << daftar[i].namaTugas << "\n";
+            cout << "Prioritas  : " << (daftar[i].prioritas == 1 ? "Tinggi" : (daftar[i].prioritas == 2 ? "Sedang" : "Rendah")) << "\n";
+            cout << "Estimasi   : " << daftar[i].estimasiWaktu << " Menit\n";
+            cout << "Status     : [" << daftar[i].status << "]\n";
+            cout << "-----------------------------------\n";
+        }
+    }
+}
  
  
 // USER SYSTEM LOGIN / REGISTER
