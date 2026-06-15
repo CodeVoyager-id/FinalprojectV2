@@ -26,7 +26,125 @@ struct User {
 struct LogRiwayat {
     string aktivitas;  // Catatan perubahan aksi user
 };
- 
+ // FITUR UNDO MENGGUNAKAN STACK
+//angota2
+struct UndoData {
+    Tugas data;
+};
+
+UndoData undoStack[MAX_TUGAS];
+int topUndo = -1;
+
+void pushUndo(Tugas t) {
+    if (topUndo < MAX_TUGAS - 1) {
+        undoStack[++topUndo].data = t;
+    }
+}
+
+bool popUndo(Tugas &t) {
+    if (topUndo == -1)
+        return false;
+
+    t = undoStack[topUndo--].data;
+    return true;
+}
+void undoAksiTerakhir() {
+    Tugas t;
+
+    if (popUndo(t)) {
+        daftar[jumlahTugas++] = t;
+
+        cout << "\n[UNDO BERHASIL]\n";
+        cout << "Tugas \"" << t.namaTugas
+             << "\" berhasil dikembalikan.\n";
+    } else {
+        cout << "\nTidak ada data yang bisa di-Undo.\n";
+    }
+}
+//angota2
+// ================= QUEUE ANTREAN =================
+struct QueueTugas {
+    Tugas data;
+};
+
+QueueTugas antrean[MAX_TUGAS];
+int frontQueue = 0;
+int rearQueue = -1;
+
+void enqueue(Tugas t) {
+    if (rearQueue < MAX_TUGAS - 1) {
+        antrean[++rearQueue].data = t;
+    }
+}
+//  FITUR ANTREAN MENGGUNAKAN QUEUE
+// anngota2
+
+struct QueueTugas {
+    Tugas data;
+};
+
+QueueTugas antrean[MAX_TUGAS];
+
+int frontQueue = 0;
+int rearQueue = -1;
+
+void enqueue(Tugas t) {
+    if (rearQueue < MAX_TUGAS - 1) {
+        antrean[++rearQueue].data = t;
+    }
+}
+
+bool dequeue(Tugas &t) {
+    if (frontQueue > rearQueue)
+        return false;
+
+    t = antrean[frontQueue++].data;
+    return true;
+}
+
+void buatAntreanPrioritas() {
+
+    frontQueue = 0;
+    rearQueue = -1;
+
+    for (int p = 1; p <= 3; p++) {
+        for (int i = 0; i < jumlahTugas; i++) {
+
+            if (daftar[i].pemilik == currentUser &&
+                daftar[i].prioritas == p &&
+                daftar[i].status != "Selesai") {
+
+                enqueue(daftar[i]);
+            }
+        }
+    }
+
+    cout << "\nAntrean tugas berhasil dibuat.\n";
+}
+
+void prosesAntrean() {
+
+    Tugas t;
+
+    if (dequeue(t)) {
+
+        cout << "\nTugas Diproses:\n";
+        cout << "ID        : " << t.id << endl;
+        cout << "Nama Tugas: " << t.namaTugas << endl;
+
+    } else {
+
+        cout << "\nAntrean kosong.\n";
+    }
+}
+
+bool dequeue(Tugas &t) {
+    if (frontQueue > rearQueue)
+        return false;
+
+    t = antrean[frontQueue++].data;
+    return true;
+}
 // Batasan Kapasitas Array Statis
 const int MAX_TUGAS = 100;
 const int MAX_USERS = 10;
@@ -389,6 +507,10 @@ void hapusTugas() {
             cout << "[Gagal] Tugas tidak ditemukan.\n";
             return;
         }
+        // Menyimpan data ke Stack sebelum dihapus
+        //angota2
+        pushUndo(daftar[indeks]);
+     
         // Shifting Array manual
         for (int i = indeks; i < jumlahTugas - 1; i++) {
             daftar[i] = daftar[i + 1];
