@@ -225,7 +225,7 @@ void tambahTugas() {
     tugasBaru.status = "Belum Selesai";
  
     daftar[jumlahTugas++] = tugasBaru;
-    simpanTugas(); // [ANGGOTA 1] - simpan otomatis ke tasks.txt
+    simpanTugas(); //  simpan otomatis ke tasks.txt
  
     tambahRiwayat("Menambahkan tugas baru: " + tugasBaru.namaTugas);
     cout << "\n[Sukses] Tugas \"" << tugasBaru.namaTugas << "\" berhasil disimpan!\n";
@@ -317,7 +317,7 @@ void updateTugas() {
             cout << "[Info] Tugas ini sudah berstatus 'Selesai'.\n";
         } else {
             daftar[indeks].status = "Selesai";
-            simpanTugas(); // [ANGGOTA 1] - simpan otomatis ke tasks.txt
+            simpanTugas(); // simpan otomatis ke tasks.txt
             tambahRiwayat("Menandai selesai tugas ID " + to_string(cariID));
             cout << "[Sukses] Tugas berhasil ditandai Selesai!\n";
         }
@@ -338,7 +338,7 @@ void updateTugas() {
         daftar[indeks].deadline = inputTeksValid("Masukkan deadline baru: ");
         daftar[indeks].estimasiWaktu = inputAngkaValid("Masukkan estimasi waktu baru (menit): ", 1, 1440);
         
-        simpanTugas(); // [ANGGOTA 1] - simpan otomatis ke tasks.txt
+        simpanTugas(); // simpan otomatis ke tasks.txt
         tambahRiwayat("Mengedit detail data pada tugas ID " + to_string(cariID));
         cout << "[Sukses] Data tugas berhasil diperbarui.\n";
     } else {
@@ -353,7 +353,7 @@ void updateTugas() {
             }
         }
         if (jumlahTerganti > 0) {
-            simpanTugas(); // [ANGGOTA 1] - simpan otomatis ke tasks.txt
+            simpanTugas(); // simpan otomatis ke tasks.txt
             tambahRiwayat("Melakukan Search & Replace nama kata kunci: " + kataKunci);
             cout << "[Sukses] Berhasil memperbarui " << jumlahTerganti << " tugas.\n";
         } else {
@@ -394,7 +394,7 @@ void hapusTugas() {
             daftar[i] = daftar[i + 1];
         }
         jumlahTugas--;
-        simpanTugas(); // [ANGGOTA 1] - simpan otomatis ke tasks.txt
+        simpanTugas(); // simpan otomatis ke tasks.txt
         tambahRiwayat("Menghapus satu tugas ID " + to_string(cariID));
         cout << "[Sukses] Tugas berhasil dihapus.\n";
     } else {
@@ -480,7 +480,7 @@ bool loginMenu() {
     if (jumlahUser == 0) {
         users[jumlahUser++] = {"admin", "admin"};
         users[jumlahUser++] = {"user", "user"};
-        simpanUsers(); // [ANGGOTA 1] - simpan akun default ke users.txt
+        simpanUsers(); // simpan akun default ke users.txt
     }
  
     while (true) {
@@ -515,7 +515,7 @@ bool loginMenu() {
             }
             string password = inputTeksValid("Daftar Password Baru: ");
             users[jumlahUser++] = {username, password};
-            simpanUsers(); // [ANGGOTA 1] - simpan akun baru ke users.txt
+            simpanUsers(); // simpan akun baru ke users.txt
             cout << "[Sukses] Akun \"" << username << "\" berhasil dibuat! Silakan gunakan menu Login.\n";
         } else {
             return false;
