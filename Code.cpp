@@ -5,6 +5,10 @@
 #include <sstream>
  
 using namespace std;
+
+const int MAX_TUGAS = 100;
+const int MAX_USERS = 10;
+
  
 // Anggota 1
 struct Tugas {
@@ -22,6 +26,76 @@ struct User {
     string username;
     string password;
 };
+ // Anggota 5 linked untuk Riwayat
+struct NodeRiwayat{
+string aktivitas;
+NodeRiwayat* berukut;
+};
+
+NodeRiwayat* headRiwayat=NULL;
+NodeRiwayat* tailRiwayat=NULL;
+
+// Tambah riwayat ke akhir daftar
+void tambahRiwayat(string aksi) {
+    NodeRiwayat* nodeBaru = new NodeRiwayat;
+    nodeBaru->aktivitas = "[" + currentUser + "] " + aksi;
+    nodeBaru->berikut = NULL;
+
+    if (kepalaRiwayat == NULL) {
+        kepalaRiwayat = nodeBaru;
+        ekorRiwayat = nodeBaru;
+    } else {
+        ekorRiwayat->berikut = nodeBaru;
+        ekorRiwayat = nodeBaru;
+    }
+}
+// Tampilkan riwayat milik pengguna aktif
+void lihatRiwayatAksi() {
+    if (kepalaRiwayat == NULL) {
+        cout << "\n[Info] Belum ada riwayat aktivitas.\n";
+        return;
+    }
+cout << "\n==================================\n";
+    cout << "      RIWAYAT AKTIVITAS ANDA      \n";
+    cout << "==================================\n";
+
+    NodeRiwayat* bantu = kepalaRiwayat;
+    int nomor = 0;
+    bool ada = false;
+
+    while (bantu != NULL) {
+        if (bantu->aktivitas.find("[" + currentUser + "]") != string::npos) {
+            cout << ++nomor << ". " << bantu->aktivitas << "\n";
+            ada = true;
+        }
+        bantu = bantu->berikut;
+    }
+
+    if (!ada) {
+        cout << "Tidak ada riwayat untuk akun ini.\n";
+    }
+    cout << "==================================\n";
+}
+// Bersihkan memori saat program selesai
+void bersihkanMemoriRiwayat() {
+    NodeRiwayat* bantu;
+    while (kepalaRiwayat != NULL) {
+        bantu = kepalaRiwayat;
+        kepalaRiwayat = kepalaRiwayat->berikut;
+        delete bantu;
+    }
+    ekorRiwayat = NULL;
+}
+
+// ==========================================
+// PENYIMPANAN GLOBAL
+// ==========================================
+Tugas daftar[MAX_TUGAS];
+User users[MAX_USERS];
+int jumlahTugas = 0;
+int jumlahUser = 0;
+string currentUser = "";
+
  
 struct LogRiwayat {
     string aktivitas;  // Catatan perubahan aksi user
