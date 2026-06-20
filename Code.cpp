@@ -1,111 +1,60 @@
 #include <iostream>
-#include <string>
 #include <limits>
 #include <fstream>
-#include <sstream>
- 
+#include <string> 
+
+// --- DETEKSI OTOMATIS SISTEM OPERASI (CROSS-PLATFORM) ---
+#if defined(_WIN32) || defined(_WIN64)
+    #include <conio.h>     
+    #define IS_WINDOWS 1
+#else
+    #include <termios.h>   
+    #include <unistd.h>
+    #define IS_WINDOWS 0
+#endif
+
 using namespace std;
 
+// Batasan Kapasitas Array Statis Global
 const int MAX_TUGAS = 100;
 const int MAX_USERS = 10;
+const int MAX_RIWAYAT = 50;
 
- 
-// Anggota 1
+
 struct Tugas {
     int id;
-    string namaTugas;
-    string kategori;   
+    string namaTugas;   
+    string kategori;     
     int prioritas;     
-    string deadline;   
-    string status;     
+    string deadline;       
+    string status;       
     int estimasiWaktu;
-    string pemilik;    
+    string pemilik;      
 };
  
 struct User {
     string username;
     string password;
 };
- // Anggota 5 linked untuk Riwayat
-struct NodeRiwayat{
-string aktivitas;
-NodeRiwayat* berukut;
-};
-
-NodeRiwayat* headRiwayat=NULL;
-NodeRiwayat* tailRiwayat=NULL;
-
-// Tambah riwayat ke akhir daftar
-void tambahRiwayat(string aksi) {
-    NodeRiwayat* nodeBaru = new NodeRiwayat;
-    nodeBaru->aktivitas = "[" + currentUser + "] " + aksi;
-    nodeBaru->berikut = NULL;
-
-    if (kepalaRiwayat == NULL) {
-        kepalaRiwayat = nodeBaru;
-        ekorRiwayat = nodeBaru;
-    } else {
-        ekorRiwayat->berikut = nodeBaru;
-        ekorRiwayat = nodeBaru;
-    }
-}
-// Tampilkan riwayat milik pengguna aktif
-void lihatRiwayatAksi() {
-    if (kepalaRiwayat == NULL) {
-        cout << "\n[Info] Belum ada riwayat aktivitas.\n";
-        return;
-    }
-cout << "\n==================================\n";
-    cout << "      RIWAYAT AKTIVITAS ANDA      \n";
-    cout << "==================================\n";
-
-    NodeRiwayat* bantu = kepalaRiwayat;
-    int nomor = 0;
-    bool ada = false;
-
-    while (bantu != NULL) {
-        if (bantu->aktivitas.find("[" + currentUser + "]") != string::npos) {
-            cout << ++nomor << ". " << bantu->aktivitas << "\n";
-            ada = true;
-        }
-        bantu = bantu->berikut;
-    }
-
-    if (!ada) {
-        cout << "Tidak ada riwayat untuk akun ini.\n";
-    }
-    cout << "==================================\n";
-}
-// Bersihkan memori saat program selesai
-void bersihkanMemoriRiwayat() {
-    NodeRiwayat* bantu;
-    while (kepalaRiwayat != NULL) {
-        bantu = kepalaRiwayat;
-        kepalaRiwayat = kepalaRiwayat->berikut;
-        delete bantu;
-    }
-    ekorRiwayat = NULL;
-}
-
-// ==========================================
-// PENYIMPANAN GLOBAL
-// ==========================================
-Tugas daftar[MAX_TUGAS];
-User users[MAX_USERS];
-int jumlahTugas = 0;
-int jumlahUser = 0;
-string currentUser = "";
-
  
 struct LogRiwayat {
-    string aktivitas;  // Catatan perubahan aksi user
+    string aktivitas;   
 };
- // FITUR UNDO MENGGUNAKAN STACK
-//angota2
+
+// Global State
+Tugas daftar[MAX_TUGAS];
+User users[MAX_USERS];
+LogRiwayat riwayat[MAX_RIWAYAT];
+ 
+int jumlahTugas = 0;
+int jumlahUser = 0;
+int jumlahRiwayat = 0;
+string currentUser = ""; // Menyimpan username aktif
+
+// ================= FITUR UNDO MENGGUNAKAN STACK =================
 struct UndoData {
     Tugas data;
 };
-
 UndoData undoStack[MAX_TUGAS];
 int topUndo = -1;
 
@@ -118,162 +67,180 @@ void pushUndo(Tugas t) {
 bool popUndo(Tugas &t) {
     if (topUndo == -1)
         return false;
-
     t = undoStack[topUndo--].data;
     return true;
 }
-void undoAksiTerakhir() {
-    Tugas t;
 
-    if (popUndo(t)) {
-        daftar[jumlahTugas++] = t;
+// ================= UTILITAS & VALIDASI INPUT =================
 
-        cout << "\n[UNDO BERHASIL]\n";
-        cout << "Tugas \"" << t.namaTugas
-             << "\" berhasil dikembalikan.\n";
-    } else {
-        cout << "\nTidak ada data yang bisa di-Undo.\n";
-    }
-}
-//angota2
-// ================= QUEUE ANTREAN =================
-struct QueueTugas {
-    Tugas data;
-};
-
-QueueTugas antrean[MAX_TUGAS];
-int frontQueue = 0;
-int rearQueue = -1;
-
-void enqueue(Tugas t) {
-    if (rearQueue < MAX_TUGAS - 1) {
-        antrean[++rearQueue].data = t;
-    }
-}
-//  FITUR ANTREAN MENGGUNAKAN QUEUE
-// anngota2
-
-struct QueueTugas {
-    Tugas data;
-};
-
-QueueTugas antrean[MAX_TUGAS];
-
-int frontQueue = 0;
-int rearQueue = -1;
-
-void enqueue(Tugas t) {
-    if (rearQueue < MAX_TUGAS - 1) {
-        antrean[++rearQueue].data = t;
-    }
+char getchUniversal() {
+    #if IS_WINDOWS
+        return _getch();
+    #else
+        char buf = 0;
+        struct termios old = {0};
+        if (tcgetattr(0, &old) < 0) perror("tcsetattr()");
+        old.c_lflag &= ~ICANON;
+        old.c_lflag &= ~ECHO;
+        old.c_cc[VMIN] = 1;
+        old.c_cc[VTIME] = 0;
+        if (tcsetattr(0, TCSANOW, &old) < 0) perror("tcsetattr ICANON");
+        if (read(0, &buf, 1) < 0) perror("read()");
+        old.c_lflag |= ICANON;
+        old.c_lflag |= ECHO;
+        if (tcsetattr(0, TCSADRAIN, &old) < 0) perror("tcsetattr ~ICANON");
+        return (buf);
+    #endif
 }
 
-bool dequeue(Tugas &t) {
-    if (frontQueue > rearQueue)
-        return false;
-
-    t = antrean[frontQueue++].data;
-    return true;
-}
-
-void buatAntreanPrioritas() {
-
-    frontQueue = 0;
-    rearQueue = -1;
-
-    for (int p = 1; p <= 3; p++) {
-        for (int i = 0; i < jumlahTugas; i++) {
-
-            if (daftar[i].pemilik == currentUser &&
-                daftar[i].prioritas == p &&
-                daftar[i].status != "Selesai") {
-
-                enqueue(daftar[i]);
-            }
-        }
-    }
-
-    cout << "\nAntrean tugas berhasil dibuat.\n";
-}
-
-void prosesAntrean() {
-
-    Tugas t;
-
-    if (dequeue(t)) {
-
-        cout << "\nTugas Diproses:\n";
-        cout << "ID        : " << t.id << endl;
-        cout << "Nama Tugas: " << t.namaTugas << endl;
-
-    } else {
-
-        cout << "\nAntrean kosong.\n";
-    }
-}
-
-bool dequeue(Tugas &t) {
-    if (frontQueue > rearQueue)
-        return false;
-
-    t = antrean[frontQueue++].data;
-    return true;
-}
-// Batasan Kapasitas Array Statis
-const int MAX_TUGAS = 100;
-const int MAX_USERS = 10;
-const int MAX_RIWAYAT = 50;
- 
-// Penyimpanan Utama Global (Tugas Anggota 1)
-Tugas daftar[MAX_TUGAS];
-User users[MAX_USERS];
-LogRiwayat riwayat[MAX_RIWAYAT];
- 
-int jumlahTugas = 0;
-int jumlahUser = 0;
-int jumlahRiwayat = 0;
-string currentUser = ""; // Menyimpan user yang sedang login
- 
- 
 int inputAngkaValid(const string& pesan, int min, int max) {
     int angka;
     while (true) {
         cout << pesan;
         cin >> angka;
-        if (cin.fail() || angka < min || angka > max) {
+        if (cin.fail()) {
             cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "[Error] Input tidak valid! Masukkan angka antara " << min << " sampai " << max << ".\n";
+            cout << "  [Error] Input harus berupa angka!\n";
+        } else if (angka == 0) { 
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            return 0; 
+        } else if (angka < min || angka > max) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "  [Error] Masukkan angka " << min << "-" << max << " (atau 0 untuk batal).\n";
         } else {
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
             return angka;
         }
     }
 }
- 
-string inputTeksValid(const string& pesan) {
-    string teks;
+
+void inputTeksValid(const string& pesan, string& wadah) {
     while (true) {
         cout << pesan;
-        getline(cin, teks);
-        if (teks.empty()) {
-            cout << "[Error] Input tidak boleh kosong!\n";
+        getline(cin, wadah);
+        if (wadah.empty()) {
+            cout << "  [Error] Input tidak boleh kosong!\n";
         } else {
-            return teks;
+            return;
         }
     }
 }
- 
-void tambahRiwayat(string aksi) {
+
+void tungguEnter() {
+    cout << "\n  Tekan [Enter] untuk kembali ke Menu Utama...";
+    cin.get();
+}
+
+void tampilkanHeaderKotak() {
+    #if IS_WINDOWS
+        system("cls");
+    #else
+        system("clear");
+    #endif
+    cout << "╔═══════════════════════════════════════════════════════╗\n";
+    cout << "║                       APEX TASK                       ║\n";
+    cout << "║         SISTEM MANAJEMEN TUGAS & PRODUCTIVITY         ║\n";
+    cout << "╚═══════════════════════════════════════════════════════╝\n";
+}
+
+void tampilkanUserActive(const string& username) {
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │  USER AKTIF : " << username;
+    
+    int sisaSpasi = 26 - username.length();
+    for (int i = 0; i < sisaSpasi; i++) {
+        cout << " ";
+    }
+    
+    cout << "│\n";
+    cout << " └─────────────────────────────────────────┘\n\n";
+}
+
+void tampilkanMenuLoginUI() {
+    tampilkanHeaderKotak(); 
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │         SISTEM OTENTIKASI LOGIN         │\n";
+    cout << " └─────────────────────────────────────────┘\n\n";
+    
+    cout << "  [1] Login Akun\n";
+    cout << "  [2] Buat Akun Baru\n";
+    cout << "  [3] Tutup Program\n";
+    cout << " ───────────────────────────────────────────\n";
+}
+
+// ================= QUEUE ANTREAN PRIORITAS =================
+struct QueueTugas {
+    Tugas data;
+};
+
+QueueTugas antrean[MAX_TUGAS];
+int frontQueue = 0;
+int rearQueue = -1;
+
+void enqueue(Tugas t) {
+    if (rearQueue < MAX_TUGAS - 1) {
+        antrean[++rearQueue].data = t;
+    }
+}
+
+bool dequeue(Tugas &t) {
+    if (frontQueue > rearQueue)
+        return false;
+    t = antrean[frontQueue++].data;
+    return true;
+}
+
+void buatAntreanPrioritas() {
+    frontQueue = 0; rearQueue = -1;
+    for (int p = 1; p <= 3; p++) {
+        for (int i = 0; i < jumlahTugas; i++) {
+            if (daftar[i].pemilik == currentUser && daftar[i].prioritas == p && daftar[i].status != "Selesai") {
+                enqueue(daftar[i]);
+            }
+        }
+    }
+    cout << "  [Queue] Buffer antrean prioritas sukses dikonfigurasi!\n";
+}
+
+void prosesAntrean() {
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │           MANAJEMEN QUEUE TUGAS         │\n";
+    cout << " ├─────────────────────────────────────────┤\n";
+    cout << " │ [1] Bangun Antrean Berdasarkan Prioritas│\n";
+    cout << " │ [2] Eksekusi/Proses Antrean Terdepan    │\n";
+    cout << " │ [0] Kembali ke Menu Utama               │\n";
+    cout << " └─────────────────────────────────────────┘\n";
+    int opsi = inputAngkaValid("  Pilih Opsi (0-2): ", 0, 2);
+    if (opsi == 0) return;
+    if (opsi == 1) {
+        buatAntreanPrioritas();
+    } else {
+        Tugas t;
+        if (dequeue(t)) {
+            cout << "  [Processing] ID:" << t.id << " -> " << t.namaTugas << " sedang dikerjakan.\n";
+        } else {
+            cout << "  [Info] Buffer Queue kosong, tidak ada antrean.\n";
+        }
+    }
+    tungguEnter();
+}
+
+void tambahRiwayat(const string& aksi) {
+    string logBaru = "[" + currentUser + "] " + aksi;
+
     if (jumlahRiwayat < MAX_RIWAYAT) {
-        riwayat[jumlahRiwayat].aktivitas = "[" + currentUser + "] " + aksi;
+        riwayat[jumlahRiwayat].aktivitas = logBaru;
         jumlahRiwayat++;
     } else {
-        // Jika log riwayat penuh, geser lama ke kiri (Shifting)
         for (int i = 0; i < MAX_RIWAYAT - 1; i++) {
-            riwayat[i] = riwayat[i + 1];
+            riwayat[i].aktivitas = riwayat[i + 1].aktivitas;
         }
-        riwayat[MAX_RIWAYAT - 1].aktivitas = "[" + currentUser + "] " + aksi;
+        riwayat[MAX_RIWAYAT - 1].aktivitas = logBaru;
     }
 }
  
@@ -305,18 +272,11 @@ int dapatkanIdBaru() {
     return maxId + 1;
 }
  
- 
+// ================= FITUR FILE HANDLING =================
 
-// FITUR FILE HANDLING (Save & Load)
-
- 
-//  SIMPAN DATA TUGAS ke tasks.txt 
 void simpanTugas() {
     ofstream file("tasks.txt");
-    if (!file) {
-        cout << "[Error] Gagal menyimpan data tugas!\n";
-        return;
-    }
+    if (!file) return;
     for (int i = 0; i < jumlahTugas; i++) {
         file << daftar[i].id << "|"
              << daftar[i].namaTugas << "|"
@@ -330,121 +290,269 @@ void simpanTugas() {
     file.close();
 }
  
-//  SIMPAN DATA USER ke users.txt 
 void simpanUsers() {
     ofstream file("users.txt");
-    if (!file) {
-        cout << "[Error] Gagal menyimpan data user!\n";
-        return;
-    }
+    if (!file) return;
     for (int i = 0; i < jumlahUser; i++) {
-        file << users[i].username << "|" << users[i].password << "\n";
+        file << users[i].username << "|"
+             << users[i].password << "\n";
     }
     file.close();
 }
  
-// MUAT DATA TUGAS dari tasks.txt 
 void muatTugas() {
     ifstream file("tasks.txt");
-    if (!file) return; // belum ada file -> mulai dari data kosong
+    if (!file) return;
  
-    string baris;
     jumlahTugas = 0;
-    while (getline(file, baris) && jumlahTugas < MAX_TUGAS) {
-        if (baris.empty()) continue;
-        stringstream ss(baris);
-        string token;
-        Tugas t;
+    string idStr, nama, kat, prioStr, dead, stat, estStr, pem;
+    
+    while (jumlahTugas < MAX_TUGAS && getline(file, idStr, '|')) {
+        getline(file, nama, '|');
+        getline(file, kat, '|');
+        getline(file, prioStr, '|');
+        getline(file, dead, '|');
+        getline(file, stat, '|');
+        getline(file, estStr, '|');
+        getline(file, pem, '\n');
+        
+        if (idStr.empty()) continue;
  
-        getline(ss, token, '|'); t.id = stoi(token);
-        getline(ss, t.namaTugas, '|');
-        getline(ss, t.kategori, '|');
-        getline(ss, token, '|'); t.prioritas = stoi(token);
-        getline(ss, t.deadline, '|');
-        getline(ss, t.status, '|');
-        getline(ss, token, '|'); t.estimasiWaktu = stoi(token);
-        getline(ss, t.pemilik, '|');
+        Tugas t;
+        t.id = stoi(idStr);
+        t.namaTugas = nama;
+        t.kategori = kat;
+        t.prioritas = stoi(prioStr);
+        t.deadline = dead;
+        t.status = stat;
+        t.estimasiWaktu = stoi(estStr);
+        t.pemilik = pem;
  
         daftar[jumlahTugas++] = t;
     }
     file.close();
 }
  
-// MUAT DATA USER dari users.txt 
 void muatUsers() {
     ifstream file("users.txt");
-    if (!file) return; // belum ada file -> akun default akan dibuat
+    if (!file) return;
  
-    string baris;
     jumlahUser = 0;
-    while (getline(file, baris) && jumlahUser < MAX_USERS) {
-        if (baris.empty()) continue;
-        stringstream ss(baris);
+    string user, pass;
+    while (jumlahUser < MAX_USERS && getline(file, user, '|')) {
+        getline(file, pass, '\n');
+        if (user.empty()) continue;
+        
         User u;
-        getline(ss, u.username, '|');
-        getline(ss, u.password, '|');
+        u.username = user;
+        u.password = pass;
         users[jumlahUser++] = u;
     }
     file.close();
 }
  
- 
-// CREATE
+// ================= CORE CRUD OPERASI =================
+
+int bacaTombolMenu() {
+    char ch = getchUniversal();
+    if (ch == 27) { 
+        char n1 = getchUniversal();
+        if (n1 == '[') {
+            char n2 = getchUniversal();
+            if (n2 == '5' || n2 == '6') {
+                char n3 = getchUniversal();
+                if (n2 == '5' && n3 == '~') return 1; 
+                if (n2 == '6' && n3 == '~') return 2; 
+            }
+            if (n2 == 'A') return 1; 
+            if (n2 == 'B') return 2; 
+        }
+    }
+    if (ch == 10 || ch == 13) {
+        return 3; 
+    }
+    return 0;
+}
+
 void tambahTugas() {
     if (jumlahTugas >= MAX_TUGAS) {
-        cout << "\n[Gagal] Memori penuh! Tidak bisa menambahkan tugas lagi.\n";
+        tampilkanHeaderKotak();
+        cout << "  [Gagal] Memori penuh!\n";
+        tungguEnter();
         return;
     }
  
     Tugas tugasBaru;
-    tugasBaru.id = dapatkanIdBaru(); // Auto-Increment ID
+    tugasBaru.id = dapatkanIdBaru();
     tugasBaru.pemilik = currentUser;
  
-    cout << "\n==================================\n";
-    cout << "        TAMBAH TUGAS BARU         \n";
-    cout << "==================================\n";
-    cout << "ID Tugas Otomatis: " << tugasBaru.id << "\n";
-    tugasBaru.namaTugas = inputTeksValid("Masukkan Nama Tugas/Aktivitas: ");
+    // --- 1. AMBIL INPUT NAMA TUGAS TERLEBIH DAHULU ---
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │             TAMBAH TUGAS BARU           │\n";
+    cout << " └─────────────────────────────────────────┘\n";
+    cout << "  ID Tugas Otomatis : " << tugasBaru.id << "\n";
+    cout << "  *Ketik 'batal' kapan saja untuk keluar\n";
+    cout << " ───────────────────────────────────────────\n";
+    
+    inputTeksValid("  Masukkan Nama Tugas: ", tugasBaru.namaTugas);
+    if (tugasBaru.namaTugas == "batal" || tugasBaru.namaTugas == "0") {
+        cout << "\n  [Info] Pengisian tugas dibatalkan.\n";
+        tungguEnter(); return;
+    }
  
-    int opsiKategori = inputAngkaValid("Pilih Kategori (1: Kuliah, 2: Pekerjaan, 3: Umum): ", 1, 3);
-    if (opsiKategori == 1) tugasBaru.kategori = "Kuliah";
-    else if (opsiKategori == 2) tugasBaru.kategori = "Pekerjaan";
-    else tugasBaru.kategori = "Umum";
- 
-    tugasBaru.prioritas = inputAngkaValid("Masukkan Prioritas (1: Tinggi, 2: Sedang, 3: Rendah): ", 1, 3);
-    tugasBaru.deadline = inputTeksValid("Masukkan Deadline (Format: YYYY-MM-DD / Hari Ini): ");
-    tugasBaru.estimasiWaktu = inputAngkaValid("Estimasi Waktu Pengerjaan (dalam menit): ", 1, 1440);
+    // ================
+    //  MENU KATEGORI 
+    // ================
+    string listKategori[] = {"Kuliah", "Pekerjaan", "Umum"};
+    int indeksKategori = 0; 
+    bool selesaiKategori = false;
+
+    while (!selesaiKategori) {
+        tampilkanHeaderKotak();
+        tampilkanUserActive(currentUser);
+        cout << " ┌─────────────────────────────────────────┐\n";
+        cout << " │             TAMBAH TUGAS BARU           │\n";
+        cout << " └─────────────────────────────────────────┘\n";
+        cout << "  Nama Tugas: " << tugasBaru.namaTugas << "\n";
+        cout << " ───────────────────────────────────────────\n";
+        cout << "  Pilih Kategori (Gunakan Panah Atas dan Bawah untuk memilih -> Enter):\n";
+        cout << "  ┌──────────────────────────────┐\n";
+
+        for (int i = 0; i < 3; i++) {
+            if (i == indeksKategori) {
+                cout << "  │  \033[7m  " << listKategori[i] << "  \033[0m";
+                // Meluruskan spasi penutup box agar frame tidak penyok
+                int sisa = 23 - listKategori[i].length();
+                for(int j=0; j<sisa; j++) cout << " ";
+                cout << "│\n";
+            } else {
+                cout << "  │     " << listKategori[i];
+                int sisa = 25 - listKategori[i].length();
+                for(int j=0; j<sisa; j++) cout << " ";
+                cout << "│\n";
+            }
+        }
+        cout << "  └──────────────────────────────┘\n";
+
+        int tombol = bacaTombolMenu();
+        if (tombol == 1) { 
+            indeksKategori--;
+            if (indeksKategori < 0) indeksKategori = 2; 
+        } 
+        else if (tombol == 2) { 
+            indeksKategori++;
+            if (indeksKategori > 2) indeksKategori = 0; 
+        } 
+        else if (tombol == 3) { 
+            tugasBaru.kategori = listKategori[indeksKategori];
+            selesaiKategori = true;
+        }
+    }
+
+    // ===============
+    // MENU PRIORITAS 
+    // ===============
+    string listPrioritas[] = {"Tinggi", "Sedang", "Rendah"};
+    int indeksPrio = 1; 
+    bool selesaiPrio = false;
+
+    while (!selesaiPrio) {
+        tampilkanHeaderKotak();
+        tampilkanUserActive(currentUser);
+        cout << " ┌─────────────────────────────────────────┐\n";
+        cout << " │             TAMBAH TUGAS BARU           │\n";
+        cout << " └─────────────────────────────────────────┘\n";
+        cout << "  Nama Tugas: " << tugasBaru.namaTugas << "\n";
+        cout << "  Kategori  : " << tugasBaru.kategori << "\n";
+        cout << " ───────────────────────────────────────────\n";
+        cout << "  Pilih Prioritas (Gunakan Panah Atas dan Bawah Untuk memilih -> Enter):\n";
+        cout << "  ┌──────────────────────────────┐\n";
+
+        for (int i = 0; i < 3; i++) {
+            if (i == indeksPrio) {
+                cout << "  │  \033[7m  " << listPrioritas[i] << "  \033[0m";
+                int sisa = 23 - listPrioritas[i].length();
+                for(int j=0; j<sisa; j++) cout << " ";
+                cout << "│\n";
+            } else {
+                cout << "  │     " << listPrioritas[i];
+                int sisa = 25 - listPrioritas[i].length();
+                for(int j=0; j<sisa; j++) cout << " ";
+                cout << "│\n";
+            }
+        }
+        cout << "  └──────────────────────────────┘\n";
+
+        int tombol = bacaTombolMenu();
+        if (tombol == 1) { 
+            indeksPrio--;
+            if (indeksPrio < 0) indeksPrio = 2;
+        } 
+        else if (tombol == 2) { 
+            indeksPrio++;
+            if (indeksPrio > 2) indeksPrio = 0;
+        } 
+        else if (tombol == 3) { 
+            tugasBaru.prioritas = indeksPrio + 1;
+            selesaiPrio = true;
+        }
+    }
+
+    // --- RENDER ULANG LAYAR TERAKHIR UNTUK INPUT DEADLINE ---
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │             TAMBAH TUGAS BARU           │\n";
+    cout << " └─────────────────────────────────────────┘\n";
+    cout << "  Nama Tugas: " << tugasBaru.namaTugas << "\n";
+    cout << "  Kategori  : " << tugasBaru.kategori << "\n";
+    cout << "  Prioritas : " << listPrioritas[tugasBaru.prioritas - 1] << "\n";
+    cout << " ───────────────────────────────────────────\n";
+
+    // 4. INPUT DEADLINE & ESTIMASI
+    cout << "  Input Deadline Terstruktur:\n";
+    int tgl = inputAngkaValid("     - Masukkan Tanggal (1-31, 0:Batal): ", 1, 31);
+    if (tgl == 0) return;
+    int bln = inputAngkaValid("     - Masukkan Bulan (1-12, 0:Batal)  : ", 1, 12);
+    if (bln == 0) return;
+    int thn = inputAngkaValid("     - Masukkan Tahun (Min 2026,0:Batal): ", 2026, 2100);
+    if (thn == 0) return;
+
+    string strTgl = (tgl < 10) ? "0" + to_string(tgl) : to_string(tgl);
+    string strBln = (bln < 10) ? "0" + to_string(bln) : to_string(bln);
+    tugasBaru.deadline = to_string(thn) + "-" + strBln + "-" + strTgl;
+
+    int estimasi = inputAngkaValid("  Estimasi Waktu (dalam menit, 0:Batal): ", 1, 1440);
+    if (estimasi == 0) return;
+    tugasBaru.estimasiWaktu = estimasi;
+    
     tugasBaru.status = "Belum Selesai";
- 
     daftar[jumlahTugas++] = tugasBaru;
-    simpanTugas(); //  simpan otomatis ke tasks.txt
+    simpanTugas();
  
     tambahRiwayat("Menambahkan tugas baru: " + tugasBaru.namaTugas);
-    cout << "\n[Sukses] Tugas \"" << tugasBaru.namaTugas << "\" berhasil disimpan!\n";
+    cout << "\n  [Sukses] Tugas \"" << tugasBaru.namaTugas << "\" berhasil disimpan!\n";
+    tungguEnter();
 }
- 
-// READ
+
 void tampilkanTugas() {
-    cout << "\n==================================\n";
-    cout << "         TAMPILKAN TUGAS          \n";
-    cout << "==================================\n";
- 
-    int hitungTugas = 0;
-    for (int i = 0; i < jumlahTugas; i++) {
-        if (daftar[i].pemilik == currentUser) hitungTugas++;
-    }
- 
-    if (hitungTugas == 0) {
-        cout << "[Info] Belum ada tugas yang terdaftar untuk Anda.\n";
-        return;
-    }
- 
-    cout << "Pilih Mode Tampilan:\n";
-    cout << "1. Tampilkan Semua Tugas\n";
-    cout << "2. Filter Kategori: Kuliah\n";
-    cout << "3. Filter Kategori: Pekerjaan\n";
-    cout << "4. Filter Kategori: Umum\n";
-    int pilihanFilter = inputAngkaValid("Pilih opsi (1-4): ", 1, 4);
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │             FILTER DATA TUGAS           │\n";
+    cout << " ├─────────────────────────────────────────┤\n";
+    cout << " │ [1] Tampilkan Semua Tugas               │\n";
+    cout << " │ [2] Kategori: Kuliah                    │\n";
+    cout << " │ [3] Kategori: Pekerjaan                 │\n";
+    cout << " │ [4] Kategori: Umum                      │\n";
+    cout << " │ [0] Batal dan Kembali                   │\n";
+    cout << " └─────────────────────────────────────────┘\n";
+    
+    int pilihanFilter = inputAngkaValid("  Pilih opsi filter (0-4): ", 0, 4);
+    if (pilihanFilter == 0) return;
  
     string filterKategori = "";
     if (pilihanFilter == 2) filterKategori = "Kuliah";
@@ -452,395 +560,348 @@ void tampilkanTugas() {
     else if (pilihanFilter == 4) filterKategori = "Umum";
  
     int totalTugasTercetak = 0;
-    cout << "\n--- DAFTAR TUGAS ANDA ---\n";
+    cout << "\n  ─── DAFTAR TUGAS ANDA ───\n";
     for (int i = 0; i < jumlahTugas; i++) {
         if (daftar[i].pemilik != currentUser) continue;
         if (pilihanFilter != 1 && daftar[i].kategori != filterKategori) continue;
  
         totalTugasTercetak++;
-        cout << "ID Tugas   : " << daftar[i].id << "\n";
-        cout << "Nama Tugas : " << daftar[i].namaTugas << "\n";
-        cout << "Kategori   : " << daftar[i].kategori << "\n";
-        cout << "Prioritas  : " << (daftar[i].prioritas == 1 ? "Tinggi" : (daftar[i].prioritas == 2 ? "Sedang" : "Rendah")) << "\n";
-        cout << "Deadline   : " << daftar[i].deadline;
-        if (daftar[i].deadline == "Hari Ini" || daftar[i].deadline == "hari ini") {
-            cout << " [!!! MENDESAK !!!]";
-        }
-        cout << "\n";
-        cout << "Estimasi   : " << daftar[i].estimasiWaktu << " Menit\n";
-        cout << "Status     : [" << daftar[i].status << "]\n";
-        cout << "-----------------------------------\n";
+        cout << "  ┌────────────────────────────────────────────────────────┐\n";
+        cout << "    ID Tugas   : " << daftar[i].id << "\n";
+        cout << "    Nama Tugas : " << daftar[i].namaTugas << "\n";
+        cout << "    Kategori   : " << daftar[i].kategori << "\n";
+        cout << "    Prioritas  : " << (daftar[i].prioritas == 1 ? "Tinggi" : (daftar[i].prioritas == 2 ? "Sedang" : "Rendah")) << "\n";
+        cout << "    Deadline   : " << daftar[i].deadline << "\n";
+        cout << "    Estimasi   : " << daftar[i].estimasiWaktu << " Menit\n";
+        cout << "    Status     : [" << daftar[i].status << "]\n";
+        cout << "  └────────────────────────────────────────────────────────┘\n";
     }
  
-    if (totalTugasTercetak == 0) {
-        cout << "Tidak ada tugas dengan kategori \"" << filterKategori << "\".\n";
-    }
+    if (totalTugasTercetak == 0) cout << "  [Info] Tidak ditemukan data tugas yang cocok.\n";
+    tungguEnter();
 }
  
-// UPDATE
 void updateTugas() {
-    cout << "\n==================================\n";
-    cout << "           UPDATE TUGAS           \n";
-    cout << "==================================\n";
- 
-    int hitungTugas = 0;
-    for (int i = 0; i < jumlahTugas; i++) {
-        if (daftar[i].pemilik == currentUser) hitungTugas++;
-    }
-    if (hitungTugas == 0) {
-        cout << "[Info] Belum ada tugas yang bisa diperbarui.\n";
-        return;
-    }
- 
-    cout << "Pilih Mode Update:\n";
-    cout << "1. Tandai Tugas Selesai (Berdasarkan ID)\n";
-    cout << "2. Edit Detail Tugas Secara Total\n";
-    cout << "3. Cari & Ganti Kata Kunci Nama Tugas (Search & Replace)\n";
-    int pilihanUpdate = inputAngkaValid("Pilih opsi (1-3): ", 1, 3);
- 
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │             UPDATE DATA TUGAS           │\n";
+    cout << " ├─────────────────────────────────────────┤\n";
+    cout << " │ [1] Tandai Selesai                      │\n";
+    cout << " │ [2] Edit Detail Tugas Total             │\n";
+    cout << " │ [3] Search & Replace Kata Kunci        │\n";
+    cout << " │ [0] Batal dan Kembali                   │\n";
+    cout << " └─────────────────────────────────────────┘\n";
+    int pilihanUpdate = inputAngkaValid("  Pilih opsi (0-3): ", 0, 3);
+    if (pilihanUpdate == 0) return;
     if (pilihanUpdate == 1) {
-        int cariID = inputAngkaValid("Masukkan ID tugas yang ingin ditandai selesai: ", 1, 100000);
+        int cariID = inputAngkaValid("  Masukkan ID tugas yang selesai (0:Batal): ", 0, 100000);
+        if (cariID == 0) return;
         int indeks = cariIndeksTugas(cariID);
-        if (indeks == -1) {
-            cout << "[Gagal] Tugas dengan ID " << cariID << " tidak ditemukan.\n";
-            return;
-        }
-        if (daftar[indeks].status == "Selesai") {
-            cout << "[Info] Tugas ini sudah berstatus 'Selesai'.\n";
-        } else {
-            daftar[indeks].status = "Selesai";
-            simpanTugas(); // simpan otomatis ke tasks.txt
-            tambahRiwayat("Menandai selesai tugas ID " + to_string(cariID));
-            cout << "[Sukses] Tugas berhasil ditandai Selesai!\n";
-        }
-    } else if (pilihanUpdate == 2) {
-        int cariID = inputAngkaValid("Masukkan ID tugas yang ingin diedit: ", 1, 100000);
-        int indeks = cariIndeksTugas(cariID);
-        if (indeks == -1) {
-            cout << "[Gagal] Tugas dengan ID " << cariID << " tidak ditemukan.\n";
-            return;
-        }
- 
-        daftar[indeks].namaTugas = inputTeksValid("Masukkan nama tugas baru: ");
-        int opsiKategori = inputAngkaValid("Pilih kategori baru (1: Kuliah, 2: Pekerjaan, 3: Umum): ", 1, 3);
-        if (opsiKategori == 1) daftar[indeks].kategori = "Kuliah";
-        else if (opsiKategori == 2) daftar[indeks].kategori = "Pekerjaan";
-        else daftar[indeks].kategori = "Umum";
-        daftar[indeks].prioritas = inputAngkaValid("Masukkan prioritas baru (1: Tinggi, 2: Sedang, 3: Rendah): ", 1, 3);
-        daftar[indeks].deadline = inputTeksValid("Masukkan deadline baru: ");
-        daftar[indeks].estimasiWaktu = inputAngkaValid("Masukkan estimasi waktu baru (menit): ", 1, 1440);
+        if (indeks == -1) { cout << "  [Gagal] ID Tugas tidak valid.\n"; tungguEnter(); return; }
         
-        simpanTugas(); // simpan otomatis ke tasks.txt
-        tambahRiwayat("Mengedit detail data pada tugas ID " + to_string(cariID));
-        cout << "[Sukses] Data tugas berhasil diperbarui.\n";
+        daftar[indeks].status = "Selesai";
+        simpanTugas();
+        cout << "  [Sukses] Tugas berhasil di-update menjadi Selesai!\n";
+    } else if (pilihanUpdate == 2) {
+        int cariID = inputAngkaValid("  Masukkan ID tugas yang mau diedit (0:Batal): ", 0, 100000);
+        if (cariID == 0) return;
+        int indeks = cariIndeksTugas(cariID);
+        if (indeks == -1) { cout << "  [Gagal] ID data tidak ditemukan.\n"; tungguEnter(); return; }
+ 
+        inputTeksValid("  Nama Tugas Baru (atau 'batal'): ", daftar[indeks].namaTugas);
+        if (daftar[indeks].namaTugas == "batal") return;
+
+        cout << "  Kategori Baru [1:Kuliah, 2:Pekerjaan, 3:Umum, 0:Batal]: ";
+        char ch = getchUniversal(); cout << ch << "\n";
+        if (ch == '1') daftar[indeks].kategori = "Kuliah";
+        else if (ch == '2') daftar[indeks].kategori = "Pekerjaan";
+        else if (ch == '3') daftar[indeks].kategori = "Umum";
+
+        simpanTugas();
+        cout << "  [Sukses] Detail data tugas berhasil dirombak!\n";
     } else {
-        string kataKunci = inputTeksValid("Masukkan kata kunci nama tugas yang ingin diganti: ");
-        string teksBaru = inputTeksValid("Masukkan nama tugas baru sebagai penggantinya: ");
+        string kataKunci, teksBaru;
+        inputTeksValid("  Masukkan kata kunci yang dicari (atau 'batal'): ", kataKunci);
+        if (kataKunci == "batal") return;
+        inputTeksValid("  Masukkan kalimat penggantinya: ", teksBaru);
+        
         int jumlahTerganti = 0;
         for (int i = 0; i < jumlahTugas; i++) {
-            if (daftar[i].pemilik != currentUser) continue;
-            if (daftar[i].namaTugas.find(kataKunci) != string::npos) {
+            if (daftar[i].pemilik == currentUser && daftar[i].namaTugas.find(kataKunci) != string::npos) {
                 daftar[i].namaTugas = teksBaru;
                 jumlahTerganti++;
             }
         }
-        if (jumlahTerganti > 0) {
-            simpanTugas(); // simpan otomatis ke tasks.txt
-            tambahRiwayat("Melakukan Search & Replace nama kata kunci: " + kataKunci);
-            cout << "[Sukses] Berhasil memperbarui " << jumlahTerganti << " tugas.\n";
+        if (jumlahTerganti > 0) { 
+            simpanTugas();
+            cout << "  [Sukses] Berhasil memperbarui " << jumlahTerganti << " tugas.\n";
         } else {
-            cout << "[Info] Tidak ditemukan tugas dengan kata kunci tersebut.\n";
+            cout << "  [Info] Kata kunci tidak cocok.\n";
         }
     }
+    tungguEnter();
 }
  
-// DELETE
 void hapusTugas() {
-    cout << "\n==================================\n";
-    cout << "           HAPUS TUGAS            \n";
-    cout << "==================================\n";
- 
-    int hitungTugas = 0;
-    for (int i = 0; i < jumlahTugas; i++) {
-        if (daftar[i].pemilik == currentUser) hitungTugas++;
-    }
-    if (hitungTugas == 0) {
-        cout << "[Info] Belum ada tugas yang bisa dihapus.\n";
-        return;
-    }
- 
-    cout << "Pilih Mode Hapus:\n";
-    cout << "1. Hapus Satu Tugas (Berdasarkan ID)\n";
-    cout << "2. Bersihkan Semua Tugas Selesai (Massal)\n";
-    int pilihanHapus = inputAngkaValid("Pilih opsi (1-2): ", 1, 2);
- 
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │              PEMBERSIHAN DATA            │\n";
+    cout << " ├─────────────────────────────────────────┤\n";
+    cout << " │ [1] Hapus Satu Tugas (Spesifik ID)      │\n";
+    cout << " │ [2] Bersihkan Semua Tugas Selesai       │\n";
+    cout << " │ [0] Batal dan Kembali                   │\n";
+    cout << " └─────────────────────────────────────────┘\n";
+    int pilihanHapus = inputAngkaValid("  Pilih opsi (0-2): ", 0, 2);
+    if (pilihanHapus == 0) return;
     if (pilihanHapus == 1) {
-        int cariID = inputAngkaValid("Masukkan ID tugas yang ingin dihapus: ", 1, 100000);
+        int cariID = inputAngkaValid("  Masukkan ID tugas yang mau dihapus (0:Batal): ", 0, 100000);
+        if (cariID == 0) return;
         int indeks = cariIndeksTugas(cariID);
-        if (indeks == -1) {
-            cout << "[Gagal] Tugas tidak ditemukan.\n";
-            return;
-        }
-        // Menyimpan data ke Stack sebelum dihapus
-        //angota2
+        if (indeks == -1) { cout << "  [Gagal] ID data salah.\n"; tungguEnter(); return; }
+        
         pushUndo(daftar[indeks]);
-     
-        // Shifting Array manual
-        for (int i = indeks; i < jumlahTugas - 1; i++) {
+        for (int i = indeks; i < jumlahTugas - 1; i++) { 
             daftar[i] = daftar[i + 1];
         }
         jumlahTugas--;
-        simpanTugas(); // simpan otomatis ke tasks.txt
-        tambahRiwayat("Menghapus satu tugas ID " + to_string(cariID));
-        cout << "[Sukses] Tugas berhasil dihapus.\n";
+        simpanTugas();
+        cout << "  [Sukses] Tugas berhasil dihapus!\n";
     } else {
         int jumlahTerhapus = 0;
         for (int i = 0; i < jumlahTugas; i++) {
             if (daftar[i].pemilik == currentUser && daftar[i].status == "Selesai") {
-                for (int j = i; j < jumlahTugas - 1; j++) {
+                for (int j = i; j < jumlahTugas - 1; j++) { 
                     daftar[j] = daftar[j + 1];
                 }
-                jumlahTugas--;
-                jumlahTerhapus++;
-                i--;
+                jumlahTugas--; jumlahTerhapus++; i--;
             }
         }
-        if (jumlahTerhapus > 0) {
-            simpanTugas(); // [ANGGOTA 1] - simpan otomatis ke tasks.txt
-            tambahRiwayat("Membersihkan massal seluruh tugas berstatus Selesai");
-            cout << "[Sukses] " << jumlahTerhapus << " tugas selesai telah dibersihkan.\n";
+        if (jumlahTerhapus > 0) { 
+            simpanTugas();
+            cout << "  [Sukses] " << jumlahTerhapus << " tugas selesai dibersihkan.\n";
         } else {
-            cout << "[Info] Tidak ada tugas selesai untuk dihapus.\n";
+            cout << "  [Info] Tidak ada data tugas 'Selesai'.\n";
         }
     }
+    tungguEnter();
 }
  
-// STATISTIK DATA
-void tampilkanStatistik() {
+void statistikDanLog() {
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
     int total = 0, selesai = 0, belumSelesai = 0, totalEstimasi = 0;
-    int kKuliah = 0, kPekerjaan = 0, kUmum = 0;
- 
     for (int i = 0; i < jumlahTugas; i++) {
         if (daftar[i].pemilik != currentUser) continue;
         total++;
-        if (daftar[i].status == "Selesai") selesai++;
-        else belumSelesai++;
-        
+        if (daftar[i].status == "Selesai") selesai++; else belumSelesai++;
         totalEstimasi += daftar[i].estimasiWaktu;
- 
-        if (daftar[i].kategori == "Kuliah") kKuliah++;
-        else if (daftar[i].kategori == "Pekerjaan") kPekerjaan++;
-        else if (daftar[i].kategori == "Umum") kUmum++;
     }
  
-    cout << "\n==================================\n";
-    cout << "      STATISTIK PRODUKTIVITAS      \n";
-    cout << "==================================\n";
-    cout << "Pengguna Aktif    : " << currentUser << "\n";
-    cout << "Total Tugas Anda  : " << total << "\n";
-    cout << "Tugas Selesai     : " << selesai << "\n";
-    cout << "Tugas Belum       : " << belumSelesai << "\n";
-    cout << "Total Sisa Waktu  : " << totalEstimasi << " Menit (~" << (totalEstimasi / 60.0) << " Jam)\n";
-    cout << "----------------------------------\n";
-    cout << "Sebaran Kategori Tugas:\n";
-    cout << " - Kuliah    : " << kKuliah << "\n";
-    cout << " - Pekerjaan : " << kPekerjaan << "\n";
-    cout << " - Umum      : " << kUmum << "\n";
-    cout << "==================================\n";
-}
- 
-// RIWAYAT AKSI
-void lihatRiwayatAksi() {
-    cout << "\n==================================\n";
-    cout << "      RIWAYAT AKTIVITAS ANDA      \n";
-    cout << "==================================\n";
-    
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │          DATA METRIK PRODUKTIVITAS      │\n";
+    cout << " ├─────────────────────────────────────────┤\n";
+    cout << "   » Total Tugas     : " << total << "\n";
+    cout << "   » Berhasil Selesai: " << selesai << "\n";
+    cout << "   » Sisa Estimasi   : " << (totalEstimasi / 60.0) << " Jam\n";
+    cout << " └─────────────────────────────────────────┘\n";
+
+    cout << "\n ┌─────────────────────────────────────────┐\n";
+    cout << " │             LOG AKTIVITAS USER          │\n";
+    cout << " └─────────────────────────────────────────┘\n";
     int counter = 0;
+    string searchKey = "[" + currentUser + "]";
     for (int i = 0; i < jumlahRiwayat; i++) {
-        // Hanya menampilkan riwayat milik user aktif saat ini
-        if (riwayat[i].aktivitas.find("[" + currentUser + "]") != string::npos) {
-            cout << ++counter << ". " << riwayat[i].aktivitas << "\n";
+        if (riwayat[i].aktivitas.find(searchKey) != string::npos) {
+            cout << "   [" << ++counter << "] " << riwayat[i].aktivitas << "\n";
         }
     }
-    
-    if (counter == 0) {
-        cout << "[Info] Belum ada riwayat log aktivitas pada sesi ini.\n";
-    }
-    cout << "==================================\n";
+    if (counter == 0) cout << "   [Info] Log jejak digital kosong.\n";
+    tungguEnter();
 }
 
-// ================= ANGGOTA 4: FITUR SEARCHING & SORTING =================
-
-// Fitur Cari (Searching) menggunakan Linear Search
 void cariTugas() {
-    cout << "\n==================================\n";
-    cout << "           CARI TUGAS             \n";
-    cout << "==================================\n";
-    cout << "1. Cari Berdasarkan ID Tugas\n";
-    cout << "2. Cari Berdasarkan Nama Tugas\n";
-    int opsi = inputAngkaValid("Pilih Opsi Cari (1-2): ", 1, 2);
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │              PENCARIAN DATA             │\n";
+    cout << " ├─────────────────────────────────────────┤\n";
+    cout << " │ [1] Cari Via ID Tugas                   │\n";
+    cout << " │ [2] Cari Via Kata Kunci Nama            │\n";
+    cout << " │ [0] Batal dan Kembali                   │\n";
+    cout << " └─────────────────────────────────────────┘\n";
+    int opsi = inputAngkaValid("  Pilih Opsi Cari (0-2): ", 0, 2);
+    if (opsi == 0) return;
 
     bool ditemukan = false;
-
     if (opsi == 1) {
-        int cariID = inputAngkaValid("Masukkan ID Tugas yang dicari: ", 1, 100000);
-        cout << "\nHasil Pencarian:\n";
+        int cariID = inputAngkaValid("  Masukkan ID yang dicari (0:Batal): ", 0, 100000);
+        if (cariID == 0) return;
         for (int i = 0; i < jumlahTugas; i++) {
-            // Memastikan ID cocok dan tugas tersebut milik user yang sedang login
             if (daftar[i].id == cariID && daftar[i].pemilik == currentUser) {
-                // Panggil fungsi cetak (atau copas format tampilan Anggota 1 di sini)
-                cout << "ID Tugas   : " << daftar[i].id << "\n";
-                cout << "Nama Tugas : " << daftar[i].namaTugas << "\n";
-                cout << "Kategori   : " << daftar[i].kategori << "\n";
-                cout << "Prioritas  : " << (daftar[i].prioritas == 1 ? "Tinggi" : (daftar[i].prioritas == 2 ? "Sedang" : "Rendah")) << "\n";
-                cout << "Deadline   : " << daftar[i].deadline << "\n";
-                cout << "Estimasi   : " << daftar[i].estimasiWaktu << " Menit\n";
-                cout << "Status     : [" << daftar[i].status << "]\n";
-                cout << "-----------------------------------\n";
+                cout << "\n  [DATA DITEMUKAN]\n  ───────────────────────────────────\n";
+                cout << "  Nama Task : " << daftar[i].namaTugas << " [" << daftar[i].status << "]\n";
                 ditemukan = true;
-                break; // ID bersifat unik, jadi bisa langsung berhenti jika ketemu
+                break;
             }
         }
     } else {
-        string cariNama = inputTeksValid("Masukkan Kata Kunci Nama Tugas: ");
-        cout << "\nHasil Pencarian:\n";
+        string cariNama;
+        inputTeksValid("  Masukkan kata kunci pencarian (atau 'batal'): ", cariNama);
+        if (cariNama == "batal") return;
         for (int i = 0; i < jumlahTugas; i++) {
-            // Mencari teks secara fleksibel menggunakan .find()
             if (daftar[i].pemilik == currentUser && daftar[i].namaTugas.find(cariNama) != string::npos) {
-                cout << "ID Tugas   : " << daftar[i].id << "\n";
-                cout << "Nama Tugas : " << daftar[i].namaTugas << "\n";
-                cout << "Kategori   : " << daftar[i].kategori << "\n";
-                cout << "Prioritas  : " << (daftar[i].prioritas == 1 ? "Tinggi" : (daftar[i].prioritas == 2 ? "Sedang" : "Rendah")) << "\n";
-                cout << "Deadline   : " << daftar[i].deadline << "\n";
-                cout << "Estimasi   : " << daftar[i].estimasiWaktu << " Menit\n";
-                cout << "Status     : [" << daftar[i].status << "]\n";
-                cout << "-----------------------------------\n";
+                cout << "  [MATCH]: ID (" << daftar[i].id << ") - " << daftar[i].namaTugas << "\n";
                 ditemukan = true;
             }
         }
     }
-
-    if (!ditemukan) {
-        cout << "[Info] Tugas tidak ditemukan atau bukan hak milik Anda.\n";
-    }
+    if (!ditemukan) cout << "  [Info] Data tidak ditemukan.\n";
+    tungguEnter();
 }
 
-// Fitur Urutkan (Sorting) menggunakan Bubble Sort
 void urutkanTugas() {
-    cout << "\n==================================\n";
-    cout << "          URUTKAN TUGAS           \n";
-    cout << "==================================\n";
-    cout << "1. Urutkan berdasarkan Tingkat Prioritas (Tinggi -> Rendah)\n";
-    cout << "2. Urutkan berdasarkan Estimasi Waktu (Cepat -> Lama)\n";
-    int opsi = inputAngkaValid("Pilih Opsi Urutan (1-2): ", 1, 2);
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
 
-    // Algoritma Bubble Sort untuk mengurutkan array statis
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │         SORTING ALGORITMA UTAMA         │\n";
+    cout << " ├─────────────────────────────────────────┤\n";
+    cout << " │ [1] Berdasarkan Urutan Prioritas       │\n";
+    cout << " │ [2] Berdasarkan Durasi Waktu Tercepat   │\n";
+    cout << " │ [0] Batal dan Kembali                   │\n";
+    cout << " └─────────────────────────────────────────┘\n";
+    int opsi = inputAngkaValid("  Pilih Opsi (0-2): ", 0, 2);
+    if (opsi == 0) return;
     for (int i = 0; i < jumlahTugas - 1; i++) {
         for (int j = 0; j < jumlahTugas - i - 1; j++) {
-            bool harusTukar = false;
-
-            if (opsi == 1) {
-                // Prioritas 1 (Tinggi) harus berada di baris paling atas/awal array
-                if (daftar[j].prioritas > daftar[j+1].prioritas) {
-                    harusTukar = true;
-                }
-            } else {
-                // Estimasi waktu paling kecil (cepat) ditaruh di awal array
-                if (daftar[j].estimasiWaktu > daftar[j+1].estimasiWaktu) {
-                    harusTukar = true;
-                }
-            }
-
-            if (harusTukar) {
-                Tugas temp = daftar[j];
-                daftar[j] = daftar[j+1];
-                daftar[j+1] = temp;
-            }
+            bool harusTukar = (opsi == 1) ?
+                (daftar[j].prioritas > daftar[j+1].prioritas) : (daftar[j].estimasiWaktu > daftar[j+1].estimasiWaktu);
+            if (harusTukar) { Tugas temp = daftar[j]; daftar[j] = daftar[j+1]; daftar[j+1] = temp; }
         }
     }
+    simpanTugas();
+    cout << "  [Sukses] Struktur data array berhasil diurutkan!\n";
+    tungguEnter();
+}
 
-    simpanTugas(); // Memanggil fungsi milik Anggota 1 untuk auto-save perubahan urutan
-    tambahRiwayat("Mengurutkan daftar tugas melalui menu Sorting");
-    cout << "\n[Sukses] Daftar tugas berhasil diurutkan secara permanen!\n";
-    
-    // Menampilkan hasil urutan terbaru ke layar
-    cout << "\n--- DAFTAR TUGAS SETELAH DIURUTKAN ---\n";
-    for (int i = 0; i < jumlahTugas; i++) {
-        if (daftar[i].pemilik == currentUser) {
-            cout << "ID Tugas   : " << daftar[i].id << "\n";
-            cout << "Nama Tugas : " << daftar[i].namaTugas << "\n";
-            cout << "Prioritas  : " << (daftar[i].prioritas == 1 ? "Tinggi" : (daftar[i].prioritas == 2 ? "Sedang" : "Rendah")) << "\n";
-            cout << "Estimasi   : " << daftar[i].estimasiWaktu << " Menit\n";
-            cout << "Status     : [" << daftar[i].status << "]\n";
-            cout << "-----------------------------------\n";
-        }
+void undoAksiTerakhir() {
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+    Tugas t;
+    cout << " ┌─────────────────────────────────────────┐\n";
+    cout << " │            UNDO DATA CONTROLLER         │\n";
+    cout << " └─────────────────────────────────────────┘\n";
+    if (popUndo(t)) {
+        daftar[jumlahTugas++] = t;
+        cout << "  [SUCCESS] Tugas \"" << t.namaTugas << "\" berhasil dikembalikan.\n";
+    } else {
+        cout << "  [Info] Stack kosong, tidak ada riwayat yang bisa di-undo.\n";
     }
+    tungguEnter();
 }
  
- 
-// USER SYSTEM LOGIN / REGISTER
 bool loginMenu() {
-    // Akun default awal 
     if (jumlahUser == 0) {
-        users[jumlahUser++] = {"admin", "admin"};
-        users[jumlahUser++] = {"user", "user"};
-        simpanUsers(); // simpan akun default ke users.txt
+        users[jumlahUser].username = "admin";
+        users[jumlahUser++].password = "admin";
+        users[jumlahUser].username = "user";
+        users[jumlahUser++].password = "user";
+        simpanUsers();
     }
  
     while (true) {
-        cout << "\n==================================\n";
-        cout << "    SISTEM PRODUKTIVITAS LOGIN    \n";
-        cout << "==================================\n";
-        cout << "1. Masuk (Login Account)\n";
-        cout << "2. Buat Akun Baru (Register)\n";
-        cout << "3. Tutup Program\n";
-        int pilihan = inputAngkaValid("Pilih Opsi (1-3): ", 1, 3);
- 
+        tampilkanMenuLoginUI();
+        int pilihan = inputAngkaValid(" Pilih Opsi (1-3): ", 1, 3);
         if (pilihan == 1) {
-            string username = inputTeksValid("Username: ");
-            string password = inputTeksValid("Password: ");
+            string username, password;
+            cout << "\n ─── Form Masuk Akun ───\n";
+            inputTeksValid(" Username: ", username);
+            inputTeksValid(" Password: ", password);
             int indeks = cariIndeksUser(username);
-            
             if (indeks != -1 && users[indeks].password == password) {
                 currentUser = username;
-                cout << "\n[Sukses] Selamat datang kembali, " << currentUser << "!\n";
+                cout << "\n [Sukses] Selamat datang kembali, " << currentUser << "!\n";
+                cout << " Tekan Enter untuk masuk ke Dashboard...";
+                cin.get(); 
                 return true;
             }
-            cout << "[Error] Username atau sandi keliru.\n";
+            cout << " [Error] Username atau sandi keliru.\n";
+            cout << "\n Tekan Enter untuk mencoba lagi...";
+            cin.get();
         } else if (pilihan == 2) {
             if (jumlahUser >= MAX_USERS) {
-                cout << "[Error] Memori kuota user penuh.\n";
+                cout << " [Error] Memori kuota user penuh.\n";
+                cin.get();
                 continue;
             }
-            string username = inputTeksValid("Daftar Username Baru: ");
+            string username;
+            cout << "\n ─── Form Daftar Akun ───\n";
+            inputTeksValid(" Daftar Username Baru: ", username);
             if (cariIndeksUser(username) != -1) {
-                cout << "[Error] Nama user tersebut sudah terpakai.\n";
+                cout << " [Error] Nama user tersebut sudah terpakai.\n";
+                cout << "\n Tekan Enter untuk mencoba lagi...";
+                cin.get();
                 continue;
             }
-            string password = inputTeksValid("Daftar Password Baru: ");
-            users[jumlahUser++] = {username, password};
-            simpanUsers(); // simpan akun baru ke users.txt
-            cout << "[Sukses] Akun \"" << username << "\" berhasil dibuat! Silakan gunakan menu Login.\n";
+            string password;
+            inputTeksValid(" Daftar Password Baru: ", password);
+            
+            users[jumlahUser].username = username;
+            users[jumlahUser].password = password;
+            jumlahUser++;
+            
+            simpanUsers();
+            cout << " [Sukses] Akun \"" << username << "\" berhasil dibuat!\n";
+            cout << "\n Tekan Enter untuk kembali...";
+            cin.get();
         } else {
             return false;
         }
     }
 }
- 
- 
-
-//  FUNGSI UTAMA (MAIN)
 
 int main() {
-    muatUsers(); // muat data user dari users.txt
-    muatTugas();  // muat data tugas dari tasks.txt
- 
-    if (loginMenu()) {
-        cout << "\nLogin berhasil. Lanjutkan ke menu utama aplikasi...\n";
-    } else {
-        cout << "\nProgram ditutup.\n";
+    muatUsers();
+    muatTugas();
+    if (!loginMenu()) {
+        cout << "\nProgram ditutup. Sampai jumpa!\n";
+        return 0;
     }
- 
+
+    while (true) {
+        tampilkanHeaderKotak();
+        tampilkanUserActive(currentUser);
+        cout << " 1. Tambah Tugas\n";
+        cout << " 2. Tampilkan Tugas & Filter\n";
+        cout << " 3. Update / Edit Tugas\n";
+        cout << " 4. Hapus Tugas (Delete)\n";
+        cout << " 5. Cari Tugas\n";
+        cout << " 6. Urutkan Tugas\n";
+        cout << " 7. Undo Aksi Terakhir\n";
+        cout << " 8. Siapkan Antrean & Proses\n";
+        cout << " 9. Statistik & Log Riwayat Aktivitas\n";
+        cout << " 10. Logout & Ganti Akun\n\n";
+        
+        int menu = inputAngkaValid(" Pilih Opsi Menu (1-10): ", 1, 10);
+        switch (menu) {
+            case 1: tambahTugas(); break;
+            case 2: tampilkanTugas(); break;
+            case 3: updateTugas(); break;
+            case 4: hapusTugas(); break;
+            case 5: cariTugas(); break;
+            case 6: urutkanTugas(); break;
+            case 7: undoAksiTerakhir(); break;
+            case 8: prosesAntrean(); break;   
+            case 9: statistikDanLog(); break;
+            case 10:
+                cout << "\nKeluar dari akun " << currentUser << "...\n";
+                if (!loginMenu()) return 0;
+                break;
+        }
+    } 
     return 0;
 }
- 
