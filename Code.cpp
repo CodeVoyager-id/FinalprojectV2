@@ -15,14 +15,14 @@
 
 using namespace std;
 
-// Global Batasan Array Statis
+// ============================================================================
+// PART 1: DEKLARASI DATA, STRUCT & POINTER UTAMA
+// ============================================================================
+
+// [ANGGOTA 1] - Representasi Entitas Data Utama & Batasan Array
 const int MAX_TUGAS = 100;
 const int MAX_USERS = 10;
-string currentUser = ""; // Menyimpan username aktif
-
-// ============================================================================
-// [ANGGOTA 1] - CRUD + STRUCT + ARRAY
-// ============================================================================
+string currentUser = ""; 
 
 struct Tugas {
     int id;
@@ -35,24 +35,325 @@ struct Tugas {
     string pemilik;      
 };
 
-Tugas daftar[MAX_TUGAS]; // Array statis untuk penyimpanan data utama
+// [ANGGOTA 1] - Pointer untuk Array Dinamis Penyimpanan Utama
+Tugas* daftar = new Tugas[MAX_TUGAS]; 
 int jumlahTugas = 0;
 
-// Deklarasi fungsi utilitas (Diimplementasikan oleh Anggota 5 di bawah)
-void tampilkanHeaderKotak();
-void tampilkanUserActive(const string& username);
-void tungguEnter();
-int inputAngkaValid(const string& pesan, int min, int max);
-void inputTeksValid(const string& pesan, string& wadah);
-char getchUniversal();
-int bacaTombolMenu();
-int cariIndeksTugas(int id);
-int dapatkanIdBaru();
-void pushUndo(Tugas t); // Dari Anggota 3
-void simpanTugas();    // Dari Anggota 2
-void tambahRiwayat(const string& aksi); // Dari Anggota 5
+// [ANGGOTA 2] - Struct Pengguna untuk Autentikasi File
+struct User {
+    string username;
+    string password;
+};
+User users[MAX_USERS];
+int jumlahUser = 0;
 
-// Fitur Create
+// [ANGGOTA 5] - Struct Riwayat Aktivitas Dinamis
+struct NodeLog {
+    string aktivitas;
+    NodeLog* next;
+};
+NodeLog* headLog = nullptr; // Head Linked List
+
+
+// ============================================================================
+// PART 2: UTILITAS UTAMA, INPUT VALIDASI, & LOG LINKED LIST (ANGGOTA 5)
+// ============================================================================
+
+// [ANGGOTA 5] - Pembersihan Layar & Tampilan Header
+void tampilkanHeaderKotak() {
+    #if IS_WINDOWS
+        system("cls");
+    #else
+        system("clear");
+    #endif
+    cout << "+=======================================================+\n";
+    cout << "|                       APEX TASK                       |\n";
+    cout << "|         SISTEM MANAJEMEN TUGAS & PRODUCTIVITY         |\n";
+    cout << "+=======================================================+\n";
+}
+
+// [ANGGOTA 5] - Tampilan Indikator Sesi User
+void tampilkanUserActive(const string& username) {
+    cout << " +-----------------------------------------+\n";
+    cout << " |  USER AKTIF : " << username;
+    int sisaSpasi = 26 - username.length();
+    for (int i = 0; i < sisaSpasi; i++) cout << " ";
+    cout << "|\n +-----------------------------------------+\n\n";
+}
+
+// [ANGGOTA 5] - Penahan Tampilan Layar Menu
+void tungguEnter() { cout << "\n  Tekan [Enter] untuk kembali ke Menu Utama..."; cin.get(); }
+
+// [ANGGOTA 5] - Fungsi Pembaca Karakter Keyboard Universal
+char getchUniversal() {
+    #if IS_WINDOWS
+        return _getch();
+    #else
+        char buf = 0; struct termios old = {0};
+        if (tcgetattr(0, &old) < 0) perror("tcsetattr()");
+        old.c_lflag &= ~ICANON; old.c_lflag &= ~ECHO; old.c_cc[VMIN] = 1; old.c_cc[VTIME] = 0;
+        if (tcsetattr(0, TCSANOW, &old) < 0) perror("tcsetattr ICANON");
+        if (read(0, &buf, 1) < 0) perror("read()");
+        old.c_lflag |= ICANON; old.c_lflag |= ECHO;
+        if (tcsetattr(0, TCSADRAIN, &old) < 0) perror("tcsetattr ~ICANON");
+        return (buf);
+    #endif
+}
+
+// [ANGGOTA 5] - Validasi Input Angka agar Tidak Error/Crash
+int inputAngkaValid(const string& pesan, int min, int max) {
+    int angka;
+    while (true) {
+        cout << pesan; cin >> angka;
+        if (cin.fail()) {
+            cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "  [Error] Input harus berupa angka!\n";
+        } else if (angka == 0) { 
+            cin.ignore(numeric_limits<streamsize>::max(), '\n'); return 0; 
+        } else if (angka < min || angka > max) {
+            cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "  [Error] Masukkan angka " << min << "-" << max << " (atau 0 untuk batal).\n";
+        } else { cin.ignore(numeric_limits<streamsize>::max(), '\n'); return angka; }
+    }
+}
+
+// [ANGGOTA 5] - Validasi Input Teks Kosong
+void inputTeksValid(const string& pesan, string& wadah) {
+    while (true) {
+        cout << pesan; getline(cin, wadah);
+        if (wadah.empty()) { cout << "  [Error] Input tidak boleh kosong!\n"; } 
+        else { return; }
+    }
+}
+
+// [ANGGOTA 5] - Navigasi Menu Interaktif Menggunakan Tombol Panah
+int bacaTombolMenu() {
+    char ch = getchUniversal();
+    if (ch == 27) { 
+        char n1 = getchUniversal();
+        if (n1 == '[') {
+            char n2 = getchUniversal();
+            if (n2 == 'A') return 1; if (n2 == 'B') return 2; 
+        }
+    }
+    if (ch == 10 || ch == 13) return 3; 
+    return 0;
+}
+
+// [ANGGOTA 5] - Helper Pencarian Indeks Berdasarkan Relasi ID & Pemilik
+int cariIndeksTugas(int id) {
+    for (int i = 0; i < jumlahTugas; i++) {
+        if (daftar[i].id == id && daftar[i].pemilik == currentUser) return i;
+    }
+    return -1;
+}
+
+// [ANGGOTA 5] - Helper Pencarian Akun Pengguna
+int cariIndeksUser(const string& username) {
+    for (int i = 0; i < jumlahUser; i++) {
+        if (users[i].username == username) return i;
+    }
+    return -1;
+}
+
+// [ANGGOTA 5] - Auto Increment ID Tugas Baru
+int dapatkanIdBaru() {
+    int maxId = 0;
+    for (int i = 0; i < jumlahTugas; i++) {
+        if (daftar[i].id > maxId) maxId = daftar[i].id;
+    }
+    return maxId + 1;
+}
+
+// [ANGGOTA 5] - Operasi Insert Linked List untuk Menyimpan Log Aktivitas
+void tambahRiwayat(const string& aksi) {
+    string logBaruStr = "[" + currentUser + "] " + aksi;
+    NodeLog* newNode = new NodeLog;
+    newNode->aktivitas = logBaruStr;
+    newNode->next = nullptr;
+
+    if (headLog == nullptr) {
+        headLog = newNode;
+    } else {
+        NodeLog* temp = headLog;
+        while (temp->next != nullptr) { temp = temp->next; }
+        temp->next = newNode;
+    }
+}
+
+// [ANGGOTA 5] - Deallokasi Memory Linked List (Mencegah Memory Leak)
+void bersihkanRiwayat() {
+    NodeLog* current = headLog;
+    while (current != nullptr) {
+        NodeLog* nextNode = current->next;
+        delete current;
+        current = nextNode;
+    }
+    headLog = nullptr;
+}
+
+
+// ============================================================================
+// PART 3: PERSISTENSI FILE HANDLING - OFSTREAM & IFSTREAM (ANGGOTA 2)
+// ============================================================================
+
+// [ANGGOTA 2] - Menyimpan Seluruh Data Tugas ke File txt
+void simpanTugas() {
+    ofstream file("tasks.txt");
+    if (!file) return;
+    for (int i = 0; i < jumlahTugas; i++) {
+        file << daftar[i].id << "|" << daftar[i].namaTugas << "|" << daftar[i].kategori << "|"
+             << daftar[i].prioritas << "|" << daftar[i].deadline << "|" << daftar[i].status << "|"
+             << daftar[i].estimasiWaktu << "|" << daftar[i].pemilik << "\n";
+    }
+    file.close();
+}
+ 
+// [ANGGOTA 2] - Menyimpan Basis Akun Pengguna ke File txt
+void simpanUsers() {
+    ofstream file("users.txt");
+    if (!file) return;
+    for (int i = 0; i < jumlahUser; i++) {
+        file << users[i].username << "|" << users[i].password << "\n";
+    }
+    file.close();
+}
+ 
+// [ANGGOTA 2] - Memuat Ulang Data Tugas dari txt ke Memori Array Dinamis
+void muatTugas() {
+    ifstream file("tasks.txt");
+    if (!file) return;
+    jumlahTugas = 0;
+    string idStr, nama, kat, prioStr, dead, stat, estStr, pem;
+    while (jumlahTugas < MAX_TUGAS && getline(file, idStr, '|')) {
+        getline(file, nama, '|'); getline(file, kat, '|'); getline(file, prioStr, '|');
+        getline(file, dead, '|'); getline(file, stat, '|'); getline(file, estStr, '|');
+        getline(file, pem, '\n');
+        if (idStr.empty()) continue;
+        Tugas t;
+        t.id = stoi(idStr); t.namaTugas = nama; t.kategori = kat; t.prioritas = stoi(prioStr);
+        t.deadline = dead; t.status = stat; t.estimasiWaktu = stoi(estStr); t.pemilik = pem;
+        daftar[jumlahTugas++] = t;
+    }
+    file.close();
+}
+ 
+// [ANGGOTA 2] - Memuat Ulang Data Akun User dari txt saat Startup
+void muatUsers() {
+    ifstream file("users.txt");
+    if (!file) return;
+    jumlahUser = 0;
+    string user, pass;
+    while (jumlahUser < MAX_USERS && getline(file, user, '|')) {
+        getline(file, pass, '\n');
+        if (user.empty()) continue;
+        User u; u.username = user; u.password = pass;
+        users[jumlahUser++] = u;
+    }
+    file.close();
+}
+
+
+// ============================================================================
+// PART 4: STRUKTUR DATA STACK & QUEUE SIMULATION (ANGGOTA 3)
+// ============================================================================
+
+// [ANGGOTA 3] - Alokasi Penyimpanan Buffer Undo Stack
+struct UndoData { Tugas data; };
+UndoData undoStack[MAX_TUGAS];
+int topUndo = -1;
+
+// [ANGGOTA 3] - Operasi Push Stack Data
+void pushUndo(Tugas t) {
+    if (topUndo < MAX_TUGAS - 1) { undoStack[++topUndo].data = t; }
+}
+
+// [ANGGOTA 3] - Operasi Pop Stack Data
+bool popUndo(Tugas &t) {
+    if (topUndo == -1) return false;
+    t = undoStack[topUndo--].data;
+    return true;
+}
+
+// [ANGGOTA 3] - Kontrol Utama Aksi Undo User
+void undoAksiTerakhir() {
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+    Tugas t;
+    cout << " +-----------------------------------------+\n";
+    cout << " |             UNDO DATA CONTROLLER        |\n";
+    cout << " +-----------------------------------------+\n";
+    if (popUndo(t)) {
+        daftar[jumlahTugas++] = t;
+        simpanTugas();
+        tambahRiwayat("Melakukan UNDO pengembalian tugas: " + t.namaTugas);
+        cout << "  [SUCCESS] Tugas \"" << t.namaTugas << "\" berhasil dikembalikan.\n";
+    } else { cout << "  [Info] Stack kosong, tidak ada riwayat yang bisa di-undo.\n"; }
+    tungguEnter();
+}
+
+// [ANGGOTA 3] - Alokasi Penyimpanan Antrean Kerja Queue
+struct QueueTugas { Tugas data; };
+QueueTugas antrean[MAX_TUGAS];
+int frontQueue = 0;
+int rearQueue = -1;
+
+// [ANGGOTA 3] - Operasi Enqueue (Masuk Antrean)
+void enqueue(Tugas t) {
+    if (rearQueue < MAX_TUGAS - 1) { antrean[++rearQueue].data = t; }
+}
+
+// [ANGGOTA 3] - Operasi Dequeue (Keluar Antrean / Di-proses)
+bool dequeue(Tugas &t) {
+    if (frontQueue > rearQueue) return false;
+    t = antrean[frontQueue++].data;
+    return true;
+}
+
+// [ANGGOTA 3] - Penyusunan Antrean Prioritas (Mendahulukan Tugas Penting)
+void buatAntreanPrioritas() {
+    frontQueue = 0; rearQueue = -1;
+    for (int p = 1; p <= 3; p++) {
+        for (int i = 0; i < jumlahTugas; i++) {
+            if (daftar[i].pemilik == currentUser && daftar[i].prioritas == p && daftar[i].status != "Selesai") {
+                enqueue(daftar[i]);
+            }
+        }
+    }
+    cout << "  [Queue] Buffer antrean prioritas sukses dikonfigurasi!\n";
+}
+
+// [ANGGOTA 3] - Menu Kontrol Simulasi Antrean Kerja (Queue)
+void prosesAntrean() {
+    tampilkanHeaderKotak();
+    tampilkanUserActive(currentUser);
+    cout << " +-----------------------------------------+\n";
+    cout << " |           MANAJEMEN QUEUE TUGAS         |\n";
+    cout << " +-----------------------------------------+\n";
+    cout << " | [1] Bangun Antrean Berdasarkan Prioritas|\n";
+    cout << " | [2] Eksekusi/Proses Antrean Terdepan    |\n";
+    cout << " | [0] Kembali ke Menu Utama               |\n";
+    cout << " +-----------------------------------------+\n";
+    int opsi = inputAngkaValid("  Pilih Opsi (0-2): ", 0, 2);
+    if (opsi == 0) return;
+    if (opsi == 1) {
+        buatAntreanPrioritas();
+    } else {
+        Tugas t;
+        if (dequeue(t)) {
+            tambahRiwayat("Memproses antrean terdepan task: " + t.namaTugas);
+            cout << "  [Processing] ID:" << t.id << " -> " << t.namaTugas << " sedang dikerjakan.\n";
+        } else { cout << "  [Info] Buffer Queue kosong, tidak ada antrean.\n"; }
+    }
+    tungguEnter();
+}
+
+
+// ============================================================================
+// PART 5: FITUR UTAMA OPERASI CRUD ARRAY & STRUCT (ANGGOTA 1)
+// ============================================================================
+
+// [ANGGOTA 1] - Fitur Create (Tambah Tugas Baru)
 void tambahTugas() {
     if (jumlahTugas >= MAX_TUGAS) {
         tampilkanHeaderKotak();
@@ -178,13 +479,13 @@ void tambahTugas() {
     tugasBaru.status = "Belum Selesai";
     daftar[jumlahTugas++] = tugasBaru;
     
-    simpanTugas();
-    tambahRiwayat("Menambahkan tugas baru: " + tugasBaru.namaTugas);
+    simpanTugas(); // Memanggil Fungsi Anggota 2
+    tambahRiwayat("Menambahkan tugas baru: " + tugasBaru.namaTugas); // Memanggil Fungsi Anggota 5
     cout << "\n  [Sukses] Tugas \"" << tugasBaru.namaTugas << "\" berhasil disimpan!\n";
     tungguEnter();
 }
 
-// Fitur Read
+// [ANGGOTA 1] - Fitur Read (Tampilkan & Saring Data Tugas)
 void tampilkanTugas() {
     tampilkanHeaderKotak();
     tampilkanUserActive(currentUser);
@@ -227,7 +528,7 @@ void tampilkanTugas() {
     tungguEnter();
 }
  
-// Fitur Update
+// [ANGGOTA 1] - Fitur Update (Ubah Status / Edit Detail Isi Tugas)
 void updateTugas() {
     tampilkanHeaderKotak();
     tampilkanUserActive(currentUser);
@@ -291,7 +592,7 @@ void updateTugas() {
     tungguEnter();
 }
  
-// Fitur Delete
+// [ANGGOTA 1] - Fitur Delete (Hapus Tugas Tunggal / Pembersihan Masal)
 void hapusTugas() {
     tampilkanHeaderKotak();
     tampilkanUserActive(currentUser);
@@ -310,7 +611,7 @@ void hapusTugas() {
         int indeks = cariIndeksTugas(cariID);
         if (indeks == -1) { cout << "  [Gagal] ID data salah.\n"; tungguEnter(); return; }
         
-        pushUndo(daftar[indeks]);
+        pushUndo(daftar[indeks]); // Menyimpan ke Buffer Stack Anggota 3 sebelum dihapus
         for (int i = indeks; i < jumlahTugas - 1; i++) { daftar[i] = daftar[i + 1]; }
         jumlahTugas--;
         simpanTugas();
@@ -333,156 +634,12 @@ void hapusTugas() {
     tungguEnter();
 }
 
-// ============================================================================
-// [ANGGOTA 2] - FILE HANDLING (FSTREAM)
-// ============================================================================
-
-struct User {
-    string username;
-    string password;
-};
-User users[MAX_USERS];
-int jumlahUser = 0;
-
-void simpanTugas() {
-    ofstream file("tasks.txt");
-    if (!file) return;
-    for (int i = 0; i < jumlahTugas; i++) {
-        file << daftar[i].id << "|" << daftar[i].namaTugas << "|" << daftar[i].kategori << "|"
-             << daftar[i].prioritas << "|" << daftar[i].deadline << "|" << daftar[i].status << "|"
-             << daftar[i].estimasiWaktu << "|" << daftar[i].pemilik << "\n";
-    }
-    file.close();
-}
- 
-void simpanUsers() {
-    ofstream file("users.txt");
-    if (!file) return;
-    for (int i = 0; i < jumlahUser; i++) {
-        file << users[i].username << "|" << users[i].password << "\n";
-    }
-    file.close();
-}
- 
-void muatTugas() {
-    ifstream file("tasks.txt");
-    if (!file) return;
-    jumlahTugas = 0;
-    string idStr, nama, kat, prioStr, dead, stat, estStr, pem;
-    while (jumlahTugas < MAX_TUGAS && getline(file, idStr, '|')) {
-        getline(file, nama, '|'); getline(file, kat, '|'); getline(file, prioStr, '|');
-        getline(file, dead, '|'); getline(file, stat, '|'); getline(file, estStr, '|');
-        getline(file, pem, '\n');
-        if (idStr.empty()) continue;
-        Tugas t;
-        t.id = stoi(idStr); t.namaTugas = nama; t.kategori = kat; t.prioritas = stoi(prioStr);
-        t.deadline = dead; t.status = stat; t.estimasiWaktu = stoi(estStr); t.pemilik = pem;
-        daftar[jumlahTugas++] = t;
-    }
-    file.close();
-}
- 
-void muatUsers() {
-    ifstream file("users.txt");
-    if (!file) return;
-    jumlahUser = 0;
-    string user, pass;
-    while (jumlahUser < MAX_USERS && getline(file, user, '|')) {
-        getline(file, pass, '\n');
-        if (user.empty()) continue;
-        User u; u.username = user; u.password = pass;
-        users[jumlahUser++] = u;
-    }
-    file.close();
-}
 
 // ============================================================================
-// [ANGGOTA 3] - STACK & QUEUE
+// PART 6: METODE ALGORITMA SEARCHING & SORTING DATA (ANGGOTA 4)
 // ============================================================================
 
-// --- IMPLEMENTASI SIMULASI STACK (UNDO) ---
-struct UndoData { Tugas data; };
-UndoData undoStack[MAX_TUGAS];
-int topUndo = -1;
-
-void pushUndo(Tugas t) {
-    if (topUndo < MAX_TUGAS - 1) { undoStack[++topUndo].data = t; }
-}
-bool popUndo(Tugas &t) {
-    if (topUndo == -1) return false;
-    t = undoStack[topUndo--].data;
-    return true;
-}
-void undoAksiTerakhir() {
-    tampilkanHeaderKotak();
-    tampilkanUserActive(currentUser);
-    Tugas t;
-    cout << " +-----------------------------------------+\n";
-    cout << " |             UNDO DATA CONTROLLER        |\n";
-    cout << " +-----------------------------------------+\n";
-    if (popUndo(t)) {
-        daftar[jumlahTugas++] = t;
-        simpanTugas();
-        tambahRiwayat("Melakukan UNDO pengembalian tugas: " + t.namaTugas);
-        cout << "  [SUCCESS] Tugas \"" << t.namaTugas << "\" berhasil dikembalikan.\n";
-    } else { cout << "  [Info] Stack kosong, tidak ada riwayat yang bisa di-undo.\n"; }
-    tungguEnter();
-}
-
-// --- IMPLEMENTASI SIMULASI QUEUE ANTREAN ---
-struct QueueTugas { Tugas data; };
-QueueTugas antrean[MAX_TUGAS];
-int frontQueue = 0;
-int rearQueue = -1;
-
-void enqueue(Tugas t) {
-    if (rearQueue < MAX_TUGAS - 1) { antrean[++rearQueue].data = t; }
-}
-bool dequeue(Tugas &t) {
-    if (frontQueue > rearQueue) return false;
-    t = antrean[frontQueue++].data;
-    return true;
-}
-void buatAntreanPrioritas() {
-    frontQueue = 0; rearQueue = -1;
-    for (int p = 1; p <= 3; p++) {
-        for (int i = 0; i < jumlahTugas; i++) {
-            if (daftar[i].pemilik == currentUser && daftar[i].prioritas == p && daftar[i].status != "Selesai") {
-                enqueue(daftar[i]);
-            }
-        }
-    }
-    cout << "  [Queue] Buffer antrean prioritas sukses dikonfigurasi!\n";
-}
-void prosesAntrean() {
-    tampilkanHeaderKotak();
-    tampilkanUserActive(currentUser);
-    cout << " +-----------------------------------------+\n";
-    cout << " |           MANAJEMEN QUEUE TUGAS         |\n";
-    cout << " +-----------------------------------------+\n";
-    cout << " | [1] Bangun Antrean Berdasarkan Prioritas|\n";
-    cout << " | [2] Eksekusi/Proses Antrean Terdepan    |\n";
-    cout << " | [0] Kembali ke Menu Utama               |\n";
-    cout << " +-----------------------------------------+\n";
-    int opsi = inputAngkaValid("  Pilih Opsi (0-2): ", 0, 2);
-    if (opsi == 0) return;
-    if (opsi == 1) {
-        buatAntreanPrioritas();
-    } else {
-        Tugas t;
-        if (dequeue(t)) {
-            tambahRiwayat("Memproses antrean terdepan task: " + t.namaTugas);
-            cout << "  [Processing] ID:" << t.id << " -> " << t.namaTugas << " sedang dikerjakan.\n";
-        } else { cout << "  [Info] Buffer Queue kosong, tidak ada antrean.\n"; }
-    }
-    tungguEnter();
-}
-
-// ============================================================================
-// [ANGGOTA 4] - SEARCHING & SORTING
-// ============================================================================
-
-// Linear/Sequential Search
+// [ANGGOTA 4] - Implementasi Linear/Sequential Search Berdasarkan ID & Nama
 void cariTugas() {
     tampilkanHeaderKotak();
     tampilkanUserActive(currentUser);
@@ -522,7 +679,7 @@ void cariTugas() {
     tungguEnter();
 }
 
-// Bubble Sort
+// [ANGGOTA 4] - Implementasi Bubble Sort Mengurutkan Prioritas & Durasi Estimasi
 void urutkanTugas() {
     tampilkanHeaderKotak();
     tampilkanUserActive(currentUser);
@@ -548,141 +705,12 @@ void urutkanTugas() {
     tungguEnter();
 }
 
-// ============================================================================
-// [ANGGOTA 5] - LINKED LIST + INTEGRASI SISTEM & UI UTALITAS
-// ============================================================================
 
-// --- IMPLEMENTASI LINKED LIST ---
-struct NodeLog {
-    string aktivitas;
-    NodeLog* next;
-};
-NodeLog* headLog = nullptr; // Pointer Utama Linked List
+// ========================================================
+// INTEGRASI BONUS SYSTEM - LOGIN & STATISTIK (ANGGOTA 5)
+// ========================================================
 
-void tambahRiwayat(const string& aksi) {
-    string logBaruStr = "[" + currentUser + "] " + aksi;
-    NodeLog* newNode = new NodeLog;
-    newNode->aktivitas = logBaruStr;
-    newNode->next = nullptr;
-
-    if (headLog == nullptr) {
-        headLog = newNode;
-    } else {
-        NodeLog* temp = headLog;
-        while (temp->next != nullptr) { temp = temp->next; }
-        temp->next = newNode;
-    }
-}
-
-// UI & Integrasi Fungsi Pembantu
-int cariIndeksTugas(int id) {
-    for (int i = 0; i < jumlahTugas; i++) {
-        if (daftar[i].id == id && daftar[i].pemilik == currentUser) return i;
-    }
-    return -1;
-}
-int cariIndeksUser(const string& username) {
-    for (int i = 0; i < jumlahUser; i++) {
-        if (users[i].username == username) return i;
-    }
-    return -1;
-}
-int dapatkanIdBaru() {
-    int maxId = 0;
-    for (int i = 0; i < jumlahTugas; i++) {
-        if (daftar[i].id > maxId) maxId = daftar[i].id;
-    }
-    return maxId + 1;
-}
-
-char getchUniversal() {
-    #if IS_WINDOWS
-        return _getch();
-    #else
-        char buf = 0; struct termios old = {0};
-        if (tcgetattr(0, &old) < 0) perror("tcsetattr()");
-        old.c_lflag &= ~ICANON; old.c_lflag &= ~ECHO; old.c_cc[VMIN] = 1; old.c_cc[VTIME] = 0;
-        if (tcsetattr(0, TCSANOW, &old) < 0) perror("tcsetattr ICANON");
-        if (read(0, &buf, 1) < 0) perror("read()");
-        old.c_lflag |= ICANON; old.c_lflag |= ECHO;
-        if (tcsetattr(0, TCSADRAIN, &old) < 0) perror("tcsetattr ~ICANON");
-        return (buf);
-    #endif
-}
-
-int inputAngkaValid(const string& pesan, int min, int max) {
-    int angka;
-    while (true) {
-        cout << pesan; cin >> angka;
-        if (cin.fail()) {
-            cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "  [Error] Input harus berupa angka!\n";
-        } else if (angka == 0) { 
-            cin.ignore(numeric_limits<streamsize>::max(), '\n'); return 0; 
-        } else if (angka < min || angka > max) {
-            cin.clear(); cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "  [Error] Masukkan angka " << min << "-" << max << " (atau 0 untuk batal).\n";
-        } else { cin.ignore(numeric_limits<streamsize>::max(), '\n'); return angka; }
-    }
-}
-
-void inputTeksValid(const string& pesan, string& wadah) {
-    while (true) {
-        cout << pesan; getline(cin, wadah);
-        if (wadah.empty()) { cout << "  [Error] Input tidak boleh kosong!\n"; } 
-        else { return; }
-    }
-}
-
-int bacaTombolMenu() {
-    char ch = getchUniversal();
-    if (ch == 27) { 
-        char n1 = getchUniversal();
-        if (n1 == '[') {
-            char n2 = getchUniversal();
-            if (n2 == '5' || n2 == '6') {
-                char n3 = getchUniversal();
-                if (n2 == '5' && n3 == '~') return 1; 
-                if (n2 == '6' && n3 == '~') return 2; 
-            }
-            if (n2 == 'A') return 1; if (n2 == 'B') return 2; 
-        }
-    }
-    if (ch == 10 || ch == 13) return 3; 
-    return 0;
-}
-
-void tungguEnter() { cout << "\n  Tekan [Enter] untuk kembali ke Menu Utama..."; cin.get(); }
-
-void tampilkanHeaderKotak() {
-    #if IS_WINDOWS
-        system("cls");
-    #else
-        system("clear");
-    #endif
-    cout << "+=======================================================+\n";
-    cout << "|                       APEX TASK                       |\n";
-    cout << "|         SISTEM MANAJEMEN TUGAS & PRODUCTIVITY         |\n";
-    cout << "+=======================================================+\n";
-}
-
-void tampilkanUserActive(const string& username) {
-    cout << " +-----------------------------------------+\n";
-    cout << " |  USER AKTIF : " << username;
-    int sisaSpasi = 26 - username.length();
-    for (int i = 0; i < sisaSpasi; i++) cout << " ";
-    cout << "|\n +-----------------------------------------+\n\n";
-}
-
-void tampilkanMenuLoginUI() {
-    tampilkanHeaderKotak(); 
-    cout << " +-----------------------------------------+\n";
-    cout << " |         SISTEM OTENTIKASI LOGIN         |\n";
-    cout << " +-----------------------------------------+\n\n";
-    cout << "  [1] Login Akun\n  [2] Buat Akun Baru\n  [3] Tutup Program\n";
-    cout << "  -------------------------------------------\n";
-}
-
+// [ANGGOTA 5] - Menampilkan Log Linked List & Akumulasi Statistik Kinerja
 void statistikDanLog() {
     tampilkanHeaderKotak();
     tampilkanUserActive(currentUser);
@@ -708,7 +736,7 @@ void statistikDanLog() {
     
     int counter = 0;
     string searchKey = "[" + currentUser + "]";
-    NodeLog* currNode = headLog; // Iterasi traversasi linked list 
+    NodeLog* currNode = headLog; // Penelusuran (Traversasi) Node Linked List
     
     while (currNode != nullptr) {
         if (currNode->aktivitas.find(searchKey) != string::npos) {
@@ -720,6 +748,7 @@ void statistikDanLog() {
     tungguEnter();
 }
 
+// [ANGGOTA 5] - Sistem Validasi Menu Otentikasi Login Akun Multi-User
 bool loginMenu() {
     if (jumlahUser == 0) {
         users[jumlahUser].username = "admin"; users[jumlahUser++].password = "admin";
@@ -727,7 +756,13 @@ bool loginMenu() {
         simpanUsers();
     }
     while (true) {
-        tampilkanMenuLoginUI();
+        tampilkanHeaderKotak(); 
+        cout << " +-----------------------------------------+\n";
+        cout << " |         SISTEM OTENTIKASI LOGIN         |\n";
+        cout << " +-----------------------------------------+\n\n";
+        cout << "  [1] Login Akun\n  [2] Buat Akun Baru\n  [3] Tutup Program\n";
+        cout << "  -------------------------------------------\n";
+        
         int pilihan = inputAngkaValid(" Pilih Opsi (1-3): ", 1, 3);
         if (pilihan == 1) {
             string username, password;
@@ -758,10 +793,19 @@ bool loginMenu() {
 }
 
 
+// =======================================
+// SISTEM MENU DAN KONTROL UTAMA PROGRAM
+// =======================================
+
 int main() {
-    muatUsers();
-    muatTugas();
-    if (!loginMenu()) { cout << "\nProgram ditutup. Sampai jumpa!\n"; return 0; }
+    muatUsers(); // Memanggil Fungsi Anggota 2
+    muatTugas(); // Memanggil Fungsi Anggota 2
+    if (!loginMenu()) { 
+        delete[] daftar; // Pembersihan Array Dinamis Anggota 1
+        bersihkanRiwayat(); // Pembersihan Linked List Anggota 5
+        cout << "\nProgram ditutup. Sampai jumpa!\n"; 
+        return 0; 
+    }
 
     while (true) {
         tampilkanHeaderKotak();
@@ -779,20 +823,28 @@ int main() {
         
         int menu = inputAngkaValid(" Pilih Opsi Menu (1-10): ", 1, 10);
         switch (menu) {
-            case 1: tambahTugas(); break;
-            case 2: tampilkanTugas(); break;
-            case 3: updateTugas(); break;
-            case 4: hapusTugas(); break;
-            case 5: cariTugas(); break;
-            case 6: urutkanTugas(); break;
-            case 7: undoAksiTerakhir(); break;
-            case 8: prosesAntrean(); break;   
-            case 9: statistikDanLog(); break;
+            case 1: tambahTugas(); break;     // Fitur Anggota 1
+            case 2: tampilkanTugas(); break;  // Fitur Anggota 1
+            case 3: updateTugas(); break;     // Fitur Anggota 1
+            case 4: hapusTugas(); break;      // Fitur Anggota 1
+            case 5: cariTugas(); break;       // Fitur Anggota 4
+            case 6: urutkanTugas(); break;    // Fitur Anggota 4
+            case 7: undoAksiTerakhir(); break; // Fitur Anggota 3
+            case 8: prosesAntrean(); break;    // Fitur Anggota 3
+            case 9: statistikDanLog(); break;  // Fitur Anggota 5
             case 10:
                 cout << "\nKeluar dari akun " << currentUser << "...\n";
-                if (!loginMenu()) return 0;
+                if (!loginMenu()) {
+                    delete[] daftar;
+                    bersihkanRiwayat();
+                    return 0;
+                }
                 break;
         }
     } 
+    
+    // Pembersihan akhir saat program ditutup normal
+    delete[] daftar;
+    bersihkanRiwayat();
     return 0;
 }
